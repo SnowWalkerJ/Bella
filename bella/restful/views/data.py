@@ -4,6 +4,7 @@ from ...common.db._arctic import arctic
 
 
 def bar(contract: str, freq: str, start_dt: str=None, end_dt: str=None):
+    """从arctic数据库中拉取K线数据"""
     lib = arctic.get_library(f"bar.{freq}")
     date_range = DateRange(start_dt, end_dt)
     data = lib.read(contract, date_range=date_range)
