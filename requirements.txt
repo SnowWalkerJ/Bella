@@ -1,0 +1,8 @@
+redis
+aioredis
+arctic>=1.67.1
+apistar>=0.5.40
+mongoengine
+ujson
+pandas
+pycrypto>=2.6.1
