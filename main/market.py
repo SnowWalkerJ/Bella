@@ -9,7 +9,7 @@ from bella.common.crypt import PrpCrypt
 from bella.common.ctp.market import Market
 from bella.common.ctp.utils import struct_to_dict
 from bella.common.db import redis
-from bella.common.db._mongo.tables.ctp_account import CTPAccount
+from bella.common.tables.ctp_account import CTPAccount
 from bella.common.exception_handler import handle_exceptions
 from bella.common.service import status_monitor
 

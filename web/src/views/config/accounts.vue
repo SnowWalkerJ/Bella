@@ -23,7 +23,7 @@
                     <FormItem prop="TdHost" label="交易服务器"><Input v-model="form.TdHost"/></FormItem>
                     <FormItem prop="IsReal" label="是否实盘"><Checkbox v-model="form.IsReal"/></FormItem>
                     <div>
-                        <Button size="large" type="primary">新增</Button>
+                        <Button size="large" @click="createAccount" type="primary">新增</Button>
                         <Button size="large">修改</Button>
                         <Button size="large" type="error">删除</Button>
                     </div>
@@ -97,6 +97,20 @@ export default {
             Util.ajax.get("/api/ctp/list").then(resp => {
                 this.accountsList = resp.data
                 this.loading = false
+            })
+        },
+        createAccount () {
+            Util.ajax.put("/api/ctp/create", this.form).then(resp => {
+                this.form = {
+                    Name: "",
+                    UserID: "",
+                    Password: "",
+                    BrokerID: "",
+                    MdHost: "",
+                    TdHost: "",
+                    IsReal: true
+                }
+                this.fetchData()
             })
         }
     },

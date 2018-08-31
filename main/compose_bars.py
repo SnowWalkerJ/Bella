@@ -24,6 +24,9 @@ PERIODS = {
 SUBSCRIBE_PERIODS = ["1m", "5m", "15m", "30m", "60m"]
 
 
+CLOSE_PERIOD = (15, 21)
+
+
 def create_bars():
     return {period: Bar(period) for period in SUBSCRIBE_PERIODS}
 
@@ -93,7 +96,7 @@ class Bar:
                 'close':                tick['LastPrice'],
                 'high':                 tick['LastPrice'],
                 'low':                  tick['LastPrice'],
-                'start_volume':         min(self.last_volume, tick['Volume']) or tick['Volume'],  # 考虑夸交割日的问题
+                'start_volume':         min(self.last_volume, tick['Volume']) or tick['Volume'],  # 考虑跨交割日的问题
                 'end_volume':           tick['Volume'],
                 'timestamp':            timestamp
             })
@@ -109,6 +112,8 @@ class Bar:
 
     @handle_exceptions(ignore=True)
     def dump(self):
+        if CLOSE_PERIOD[0] <= self.data['timestamp'] % HOUR_UNIT < CLOSE_PERIOD[1]:
+            return
         # 把时间戳对齐到整数
         remainder = self.period[0] - (self.data['timestamp'] - self.period[1]) % self.period[0]
         bar = {

@@ -1,7 +1,7 @@
 from apistar import http, exceptions, Route
 import mongoengine
 from ...common.crypt import PrpCrypt
-from ...common.db._mongo.tables import Futures, mongo_to_dict
+from ...common.tables import Futures, mongo_to_dict
 
 
 def list_():

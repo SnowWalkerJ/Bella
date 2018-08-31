@@ -8,8 +8,8 @@ import os
 import subprocess as sp
 from quant.utils import Logger
 from .db import redis
-from .db._mongo.tables.service import Service
-from .db._mongo.tables import mongo_to_dict
+from .tables.service import Service
+from .tables import mongo_to_dict
 from .exception_handler import handle_exceptions
 
 

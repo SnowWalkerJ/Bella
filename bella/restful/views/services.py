@@ -1,6 +1,6 @@
 from apistar import Route
 from ...common.db._redis import redis
-from ...common.db._mongo.tables import mongo_to_dict
+from ...common.tables import mongo_to_dict
 from ...common.service import ServiceManager
 
 
