@@ -50,6 +50,9 @@ class MarketServer(Market):
         except UnicodeDecodeError:
             return
         data = struct_to_dict(data)
+        hour = int(data['UpdateTime'].split(":")[0])
+        if 15 < hour <= 20:
+            return
         del data["ExchangeID"], data["ExchangeInstID"], data["PreDelta"], \
             data["CurrDelta"], data["BidPrice2"], data["BidPrice3"], \
             data["BidPrice4"], data["BidPrice5"], \
