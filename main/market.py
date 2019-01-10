@@ -76,9 +76,6 @@ class MarketServer(Market):
     def OnRtnDepthMarketData(self, pDepthMarketData):
         self.add_callback(self.handler_data, pDepthMarketData)
 
-def run(**kwargs):
-    MarketServer().run()
-
 
 if __name__ == '__main__':
     MarketServer().run()

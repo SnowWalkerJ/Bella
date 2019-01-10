@@ -6,3 +6,5 @@ django_rest_framework
 pymongo
 ujson
 pandas
+markdown
+coreapi
