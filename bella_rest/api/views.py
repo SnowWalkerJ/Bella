@@ -44,8 +44,8 @@ class InstrumentView(APIView):
         data = ujson.loads(request.data['data'])
         old = list(Instrument.objects.all())
         old_ids = set(x['InstrumentId'] for x in old)
-        for instrument in data:
-            if instrument['InstrumentId'] in old_ids:
+        for name, instrument in data.items():
+            if name in old_ids:
                 continue
             instrument = InstrumentSerializer.create(instrument)
             instrument.save()
