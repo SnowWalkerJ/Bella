@@ -32,6 +32,12 @@ class TaskViewSet(ModelViewSet):
     serializer_class = TaskSerializer
 
 
+class InstrumentView(APIView):
+    def put(self, request):
+        data = request.data['data']
+        return data
+
+
 class BarDataView(APIView):
     schema = AutoSchema([
         coreapi.Field("contract", True, "form", type="string", description="Contract Id"),
@@ -42,10 +48,10 @@ class BarDataView(APIView):
 
     def get(self, request):
         """从arctic数据库中拉取K线数据"""
-        contract = request.data['contract']
-        freq = request.data['freq']
-        start_dt = request.data.get('start_dt')
-        end_dt = request.data.get('end_dt')
+        contract = request.query_params['contract']
+        freq = request.query_params['freq']
+        start_dt = request.query_params.get('start_dt')
+        end_dt = request.query_params.get('end_dt')
 
         lib = arctic.get_library(f"bar.{freq}")
         date_range = DateRange(start_dt, end_dt)

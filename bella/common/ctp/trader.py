@@ -10,7 +10,7 @@ import time
 from quant.utils import Logger
 from ._ctp import TraderApi, ApiStruct
 from .utils import struct_to_dict
-from ..api import API
+from ..restful import api
 
 
 CTP_NOT_INITED = 7
@@ -42,7 +42,7 @@ class Trader(TraderApi):
 
     def login(self):
         tmp_path = tempfile.mkdtemp(prefix=f"trader_{datetime.date.today().strftime('%Y%m%d')}_").encode()
-        self.Create(tmp_path + "/")
+        self.Create(tmp_path + b"/")
         self.SubscribePrivateTopic(ApiStruct.TERT_RESUME)  # 从本交易日开始重传       
         self.SubscribePublicTopic(ApiStruct.TERT_RESUME)             
         self.RegisterFront(self.host)  # 注册前置机
@@ -176,7 +176,8 @@ class Trader(TraderApi):
             Logger.info(f"获取有效合约完成！总共 {len(self.instruments)} 个合约")
             self.connected = True
             self.need_relogin = False
-            API.post("instruments/update", data=self.instruments)
+            api.action("instruments", "update", params={"data": self.instruments})
+            # API.post("instruments/update", data=self.instruments)
             # pickle.dump(self.instruments, open(f"instruments_{self.trading_day}", "wb"))
 
     def OnRspQryInvestor(self, pInvestor, pRspInfo, nRequestID, bIsLast):

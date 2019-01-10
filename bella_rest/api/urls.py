@@ -14,4 +14,5 @@ router.register("task", views.TaskViewSet, "Task")
 urlpatterns = router.urls
 urlpatterns += [
     url(r"^schema$", schema_view),
+    url(r"^instruments", views.InstrumentView.as_view()),
 ]

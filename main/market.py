@@ -39,7 +39,7 @@ class MarketServer(Market):
             self.ioloop.stop()
 
     def get_ctp_account(self):
-        return self.api.action("ctp", "read", {"Name": "simnow"})
+        return self.api.action("ctp", "read", params={"Name": "simnow"})
 
     @handle_exceptions(ignore=True)
     def handler_data(self, data):
