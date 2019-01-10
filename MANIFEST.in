@@ -1,1 +1,2 @@
 include bella/common/ctp/_ctp/*
+include config.cfg
