@@ -1,0 +1,27 @@
+info:
+  description: ''
+  title: ''
+  version: ''
+openapi: 3.0.0
+paths:
+  /api/ctp/:
+    get:
+      operationId: ctp_list
+      tags:
+      - ctp
+  /api/ctp/{Name}/:
+    get:
+      operationId: ctp_read
+      parameters:
+      - in: path
+        name: Name
+        required: true
+        schema:
+          description: A unique value identifying this ctp account.
+          title: !!python/tuple
+          - Name
+          type: string
+      tags:
+      - ctp
+servers:
+- url: ''

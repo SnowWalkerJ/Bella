@@ -2,6 +2,7 @@ from datetime import datetime, date
 import os
 import ujson
 from quant.utils import Logger
+from startpro.core.utils.loader import safe_init_run
 from bella.common.asyncloop import ThreadSafeAsyncLoop
 from bella.common.constants import CLIENT_DIR, SECOND_UNIT
 from bella.common.crypt import PrpCrypt
@@ -76,9 +77,6 @@ class MarketServer(Market):
     def OnRtnDepthMarketData(self, pDepthMarketData):
         self.add_callback(self.handler_data, pDepthMarketData)
 
+@safe_init_run
 def run(**kwargs):
-    MarketServer().run()
-
-
-if __name__ == '__main__':
     MarketServer().run()

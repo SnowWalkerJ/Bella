@@ -20,12 +20,5 @@ const routers = [
         },
         component: (resolve) => require(['./views/service/monitor.vue'], resolve)
     },
-    {
-        path: '/service/register',
-        meta: {
-            title: '服务注册'
-        },
-        component: (resolve) => require(['./views/service/register.vue'], resolve)
-    },
 ];
 export default routers;
