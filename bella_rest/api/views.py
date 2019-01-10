@@ -1,15 +1,18 @@
 from rest_framework.viewsets import ReadOnlyModelViewSet, ModelViewSet
 from rest_framework.views import APIView
 from rest_framework.schemas import AutoSchema
+from rest_framework.response import Response
 from arctic.date import DateRange
 import coreapi
+import ujson
 
 # from bella.common.db._arctic import arctic
 from .models.ctp_account import CTPAccount
 from .models.service import Service
 from .models.task import Task
 from .models.bar_period import BarPeriod
-from .serializers import CTPAccountSerializer, ServiceSerializer, TaskSerializer, BarPeriodSerializer
+from .models.instrument import Instrument
+from .serializers import CTPAccountSerializer, ServiceSerializer, TaskSerializer, BarPeriodSerializer, InstrumentSerializer
 
 
 class CTPAccountViewSet(ReadOnlyModelViewSet):
@@ -33,9 +36,19 @@ class TaskViewSet(ModelViewSet):
 
 
 class InstrumentView(APIView):
+    schema = AutoSchema([
+        coreapi.Field("data", True, "body", type="object", description="instrument data"),
+    ])
+
     def put(self, request):
-        data = request.data['data']
-        return data
+        data = ujson.loads(request.data['data'])
+        old = list(Instrument.objects.all())
+        old_ids = set(x['InstrumentId'] for x in old)
+        for instrument in data:
+            if instrument['InstrumentId'] in old_ids:
+                continue
+            instrument = InstrumentSerializer.create(instrument)
+            instrument.save()
 
 
 class BarDataView(APIView):
