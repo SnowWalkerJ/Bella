@@ -1,6 +1,6 @@
-# Bella CTP trading platform
+# Bella CTP 交易平台
 
-## Environment variables
+## 环境变量
 
 - BELLA_MONGO_HOST
   - mongodb host, default localhost

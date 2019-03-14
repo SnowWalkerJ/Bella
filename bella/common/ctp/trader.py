@@ -73,13 +73,13 @@ class Trader(TraderApi):
         Logger.info(f'GetPosition ,result:[{result}]')
 
     def getSettlement(self, trading_day=''):
-        self.settlement_info = ''  
+        self.settlement_info = ''
         trading_day = trading_day or self.trading_day
-            
+
         req = ApiStruct.QrySettlementInfo(BrokerID=self.broker_id, InvestorID=self.investor_id, TradingDay=trading_day)        
         result = self.ReqQrySettlementInfo(req, self.inc_request_id())
         Logger.info(f'获取结算单信息 {trading_day}, getSettlement {result}')
-    
+
     def confirmSettlement(self):
         """
         确认结算信息
@@ -91,7 +91,7 @@ class Trader(TraderApi):
 
     ############# 前台连接
 
-    def OnFrontConnected(self):            
+    def OnFrontConnected(self):
         """
         前置机连接成功,用户登录
         """
@@ -104,14 +104,14 @@ class Trader(TraderApi):
         self.need_relogin = False
         self.login_status = False
         self.instruments.clear()  # 清除合约
-        Logger.warn('OnFrontDisconnected:[{nReason}]')
+        Logger.warn(f'OnFrontDisconnected:[{nReason}]')
 
     ############## 通知
 
     def OnRtnTrade(self, pTrade):
-        """成交通知"""                          
+        """成交通知"""
         Logger.info("OnRtnTrade", pTrade)
-        
+
     def OnRtnOrder(self, pOrder):
         """
         报单通知（通过参数检测->已经提交成功）
@@ -121,7 +121,7 @@ class Trader(TraderApi):
 
     def OnRtnInstrumentStatus(self, pInstrumentStatus):
         """合约交易状态通知"""
-#         log.info("OnRtnInstrumentStatus %s" %pInstrumentStatus)
+        Logger.info("OnRtnInstrumentStatus", pInstrumentStatus)
         pass
 
     def OnRtnTradingNotice(self, pTradingNoticeInfo):
@@ -218,10 +218,10 @@ class Trader(TraderApi):
     def OnRspQrySettlementInfo(self, pSettlementInfo, pRspInfo, nRequestID, bIsLast):
         """请求查询投资者结算结果响应"""
         if not pSettlementInfo:
-            return 
-        
+            return
+
         data = struct_to_dict(pSettlementInfo)
-                
+
         self.settlement_info += data.get('Content')
         data = json.dumps(data)
         if bIsLast:
@@ -231,10 +231,10 @@ class Trader(TraderApi):
             Logger.info('结算单信息已生成 ')
 
     def OnRspSettlementInfoConfirm(self, pSettlementInfoConfirm, pRspInfo, nRequestID, bIsLast):
-        """投资者结算结果确认响应"""              
+        """投资者结算结果确认响应"""
         Logger.info(f'确认结算信息完成![{pSettlementInfoConfirm}]')
         time.sleep(2)  # 防止查询未就绪
-        # 请求合约 
+        # 请求合约
         self.login_status = True
         self.getInstrument()
 

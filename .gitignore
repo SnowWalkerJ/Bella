@@ -7,3 +7,6 @@ env/
 .DS_Store
 config.cfg
 .vscode/
+build/
+dist/
+*.egg-info/

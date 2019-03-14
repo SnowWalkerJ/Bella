@@ -4,7 +4,6 @@ from rest_framework.schemas import AutoSchema
 from rest_framework.response import Response
 from arctic.date import DateRange
 import coreapi
-import ujson
 
 # from bella.common.db._arctic import arctic
 from .models.ctp_account import CTPAccount
@@ -37,17 +36,18 @@ class TaskViewSet(ModelViewSet):
 
 class InstrumentView(APIView):
     schema = AutoSchema([
-        coreapi.Field("data", True, "body", type="object", description="instrument data"),
+        coreapi.Field("data", True, "form", description="instrument data"),
     ])
 
     def put(self, request):
-        data = ujson.loads(request.data['data'])
+        data = request.data['data']
         old = list(Instrument.objects.all())
         old_ids = set(x['InstrumentId'] for x in old)
+        serializer = InstrumentSerializer()
         for name, instrument in data.items():
             if name in old_ids:
                 continue
-            instrument = InstrumentSerializer.create(instrument)
+            instrument = serializer.create(instrument)
             instrument.save()
 
 
