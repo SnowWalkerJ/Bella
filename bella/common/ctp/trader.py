@@ -171,7 +171,7 @@ class Trader(TraderApi):
     def OnRspQryInstrument(self, pInstrument, pRspInfo, nRequestID, bIsLast):
         """请求查询合约响应"""
         data = struct_to_dict(pInstrument)
-        self.instruments[pInstrument.InstrumentID] = data
+        self.instruments[pInstrument.InstrumentID.decode()] = data
         if bIsLast:
             Logger.info(f"获取有效合约完成！总共 {len(self.instruments)} 个合约")
             self.connected = True

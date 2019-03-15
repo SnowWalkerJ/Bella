@@ -42,7 +42,7 @@ class InstrumentView(APIView):
     def put(self, request):
         data = request.data['data']
         old = list(Instrument.objects.all())
-        old_ids = set(x['InstrumentId'] for x in old)
+        old_ids = set(x.InstrumentID for x in old)
         serializer = InstrumentSerializer()
         for name, instrument in data.items():
             if name in old_ids:
