@@ -11,8 +11,8 @@ from quant.utils import Logger
 from startpro.core.utils.loader import safe_init_run
 from startpro.core.process import Process
 
-from bella.common.db import redis, arctic
-from bella.common.tables.bar_period import BarPeriod
+from bella.db import redis, arctic
+from bella.tables.bar_period import BarPeriod
 
 
 class Main(Process):

@@ -2,8 +2,8 @@ from aioredis.pubsub import Receiver
 import ujson
 from startpro.core.utils.loader import safe_init_run
 from startpro.core.process import Process
-from bella.common.db._redis import create_aredis
-from bella.common.service import status_monitor
+from bella.db._redis import create_aredis
+from bella.service import status_monitor
 
 
 class DataCacheSaver(Process):

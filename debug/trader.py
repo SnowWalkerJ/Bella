@@ -1,5 +1,5 @@
-from bella.common.asyncloop import ThreadSafeAsyncLoop
-from bella.common.ctp.trader import Trader
+from bella.asyncloop import ThreadSafeAsyncLoop
+from bella.ctp.trader import Trader
 
 
 host = b"tcp://180.168.146.187:10000"

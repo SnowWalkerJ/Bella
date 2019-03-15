@@ -5,7 +5,7 @@ from rest_framework.response import Response
 from arctic.date import DateRange
 import coreapi
 
-# from bella.common.db._arctic import arctic
+# from bella.db._arctic import arctic
 from .models.ctp_account import CTPAccount
 from .models.service import Service
 from .models.task import Task
@@ -49,6 +49,7 @@ class InstrumentView(APIView):
                 continue
             instrument = serializer.create(instrument)
             instrument.save()
+        return Response()
 
 
 class BarDataView(APIView):

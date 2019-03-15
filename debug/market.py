@@ -1,5 +1,5 @@
-from bella.common.asyncloop import ThreadSafeAsyncLoop
-# from bella.common.ctp.market import Market
+from bella.asyncloop import ThreadSafeAsyncLoop
+# from bella.ctp.market import Market
 from bella.main.market import MarketServer
 
 
