@@ -49,7 +49,7 @@ class MarketServer(Market):
             return
         data = struct_to_dict(data)
         # hour = int(data['UpdateTime'].split(":")[0])
-        if "15:00" < data['UpdateTime'] <= "20:59":
+        if "03:00" <= data['UpdateTime'] <= "09:00" or "15:00" < data['UpdateTime'] <= "20:59":
             return
         del data["ExchangeID"], data["ExchangeInstID"], data["PreDelta"], \
             data["CurrDelta"], data["BidPrice2"], data["BidPrice3"], \
@@ -72,6 +72,7 @@ class MarketServer(Market):
         channel = f"TICK:{instrument_id}"
         data = ujson.dumps(data)
         redis.publish(channel, data)
+        redis.hset("Price", instrument_id, data['LastPrice'])
 
     def OnRtnDepthMarketData(self, pDepthMarketData):
         self.add_callback(self.handler_data, pDepthMarketData)

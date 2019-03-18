@@ -11,7 +11,7 @@ class DataCacheSaver(Process):
 
     @safe_init_run
     @status_monitor("data_cache_saver")
-    async def run(self, **kwargs):
+    async def run(self, loop, **kwargs):
         redis = await create_aredis()
         self.redis = await create_aredis()
         recv = Receiver()

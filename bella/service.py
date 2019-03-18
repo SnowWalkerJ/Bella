@@ -29,8 +29,8 @@ def status_monitor(name):
             ioloop = asyncio.get_event_loop()
             ioloop.call_soon(heartbeat, name)
             if iscoroutinefunction(func):
-                coro = func(*args, **kwargs)
-                future = asyncio.ensure_future(coro)
+                coro = func(*args, **kwargs, loop=ioloop)
+                future = asyncio.ensure_future(coro, loop=ioloop)
                 ioloop.run_until_complete(future)
             else:
                 func(*args, **kwargs)

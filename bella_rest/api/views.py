@@ -11,7 +11,19 @@ from .models.service import Service
 from .models.task import Task
 from .models.bar_period import BarPeriod
 from .models.instrument import Instrument
-from .serializers import CTPAccountSerializer, ServiceSerializer, TaskSerializer, BarPeriodSerializer, InstrumentSerializer
+from .models.order import Order
+from .models.ctp_order import CTPOrder
+from .models.ctp_trade import CTPTrade
+from .serializers import (
+    CTPAccountSerializer,
+    ServiceSerializer,
+    TaskSerializer,
+    BarPeriodSerializer,
+    InstrumentSerializer,
+    OrderSerializer,
+    CTPOrderSerializer,
+    CTPTradeSerializer,
+)
 
 
 class CTPAccountViewSet(ReadOnlyModelViewSet):
@@ -27,6 +39,11 @@ class BarPeriodViewSet(ReadOnlyModelViewSet):
 class ServiceViewSet(ModelViewSet):
     queryset = Service.objects.all()
     serializer_class = ServiceSerializer
+
+
+class OrderViewSet(ModelViewSet):
+    queryset = Order.objects.all()
+    serializer_class = OrderSerializer
 
 
 class TaskViewSet(ModelViewSet):

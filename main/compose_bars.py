@@ -147,7 +147,7 @@ class BarComposer(Process):
 
     @safe_init_run
     @status_monitor("bar")
-    async def run(self, **kwargs):
+    async def run(self, loop, **kwargs):
         aredis = await create_aredis()
         mpsc = Receiver()
         pattern = mpsc.pattern("TICK:*")

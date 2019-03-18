@@ -8,3 +8,4 @@ ujson
 pandas
 markdown
 coreapi
+Pyro4

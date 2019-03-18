@@ -1,4 +1,4 @@
-from quant.utils import ConfigManager
+import yaml
 
-
-CONFIG = ConfigManager()
+with open("config.yml") as f:
+    CONFIG = yaml.safe_load(f)

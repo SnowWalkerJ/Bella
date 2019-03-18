@@ -19,7 +19,7 @@ class Main(Process):
     name = "data_arctic_saver"
 
     @safe_init_run
-    def run(self, **kwargs):
+    def run(self, loop, **kwargs):
         Logger.info("启动data_arctic_saver")
         self.initialize_libraries()
         self.dump_ticks()

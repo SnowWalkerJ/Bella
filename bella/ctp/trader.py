@@ -217,6 +217,7 @@ class Trader(TraderApi):
     def OnRspQrySettlementInfo(self, pSettlementInfo, pRspInfo, nRequestID, bIsLast):
         """请求查询投资者结算结果响应"""
         if not pSettlementInfo:
+            Logger.info("无结算结果")
             return
 
         data = struct_to_dict(pSettlementInfo)
