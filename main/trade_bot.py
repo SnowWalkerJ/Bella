@@ -6,6 +6,7 @@ from datetime import datetime
 
 import ujson
 import Pyro4
+from dateutil.parser import parse
 from aioredis.pubsub import Receiver
 
 from bella.ctp.trader import Trader
@@ -17,7 +18,7 @@ from bella.db._redis import redis, create_aredis
 from bella.service import status_monitor
 
 
-class TraderPlatform(Trader):
+class TraderBot(Trader):
 
     ############## 通知
 
@@ -25,13 +26,21 @@ class TraderPlatform(Trader):
         """成交通知"""
         redis.publish("Trader:OnRtnTrade", ujson.dumps({"pTrade": struct_to_dict(pTrade)}))
         super().OnRtnTrade(pTrade)
+        # Submit to API
+        data = {
+            "TradeID": pTrade.TradeID.decode(),
+            "OrderID": self.query_ctp_order(pTrade.BrokerID, pTrade.InvestorID, pTrade.OrderRef),
+            "Price": pTrade.Price,
+            "Volume": pTrade.Volume,
+            "TradeTime": parse(b" ".join([pTrade.TradeDate, pTrade.TradeTime]).decode()),
+        }
+        api.action("api", "ctp_trade", params=data, action="POST")
         self.query_position(pTrade.InstrumentID)
 
     def OnRtnOrder(self, pOrder):
         """
         报单通知（通过参数检测->已经提交成功）
         """
-
         redis.publish("Trader:OnRtnOrder", ujson.dumps(struct_to_dict(pOrder)))
         super().OnRtnOrder(pOrder)
 
@@ -82,13 +91,19 @@ class TraderPlatform(Trader):
 
     def OnRspQryInvestorPosition(self, pInvestorPosition, pRspInfo, nRequestID, bIsLast):
         """请求查询投资者持仓响应"""
+        pInvestor = struct_to_dict(pInvestor)
+        # Redis Publish
         data = {
-            "pInvestorPosition": struct_to_dict(pInvestor),
+            "pInvestorPosition": pInvestor,
             "pRspInfo": struct_to_dict(pRspInfo),
             "nRequestID": nRequestID,
             "bIsLast": bIsLast,
         }
         redis.publish("Trader:OnRspQryInvestorPosition", ujson.dumps(data))
+
+        # Redis Status
+        redis.hset(Position, pInvestor['InstrumentID'], pInvestor)
+
         super().OnRspQryInvestorPosition(pInvestorPosition, pRspInfo, nRequestID, bIsLast)
 
     def OnRspQryInvestorPositionDetail(self, pInvestorPositionDetail, pRspInfo, nRequestID, bIsLast):
@@ -102,7 +117,7 @@ class TraderPlatform(Trader):
         redis.publish("Trader:OnRspQryInvestorPositionDetail", ujson.dumps(data))
         super().OnRspQryInvestorPositionDetail(pInvestorPositionDetail, pRspInfo, nRequestID, bIsLast)
 
-    def send_order(self, instrument, price, volume, direction, offset):
+    def send_order(self, instrument, price, volume, direction, offset, order_id):
         orderref = self.inc_orderref_id()
         order = ApiStruct.InputOrder(
             BrokerID=self.broker_id,
@@ -125,12 +140,22 @@ class TraderPlatform(Trader):
             MinVolume=1,
         )
         self.ReqOrderInsert(order, self.inc_request_id())
-        record = struct_to_dict(order)
-        record['BrokerID'] = int(record['BrokerID'])
-        record['InvestorID'] = int(record['InvestorID'])
-        record['InsertTime'] = datetime.now()
-        record['OrderRef'] = orderref
-        api.action("trader", "order", "insert", params=)
+
+        # API
+        record = {
+            'BrokerID': int(record.BrokerID),
+            'InvestorID': int(record.InvestorID),
+            'OrderRef': orderref,
+            'OrderID': order_id,
+            'InstrumentID': instrument,
+            'Direction': direction,
+            'Offset': offset,
+            'Price': price,
+            'Volume': volume,
+            'InsertTime': datetime.now(),
+        }
+
+        api.action("api", "ctp_order", params=record, action="POST")
         return orderref
 
     def cancel_order(self, instrument, order_ref, front_id, session_id):
@@ -163,14 +188,14 @@ class TraderInterface:
     """
     def __init__(self):
         account = api.action("ctp", "read", params={"Name": "simnow"})
-        self.trader = TraderPlatform(account['TdHost'].encode(),
-                                     account['UserID'].encode(),
-                                     account['BrokerID'].encode(),
-                                     account['Password'].encode())
+        self.trader = TraderBot(account['TdHost'].encode(),
+                                account['UserID'].encode(),
+                                account['BrokerID'].encode(),
+                                account['Password'].encode())
 
     @Pyro4.expose
     def query_position(self, instrument):
-        return redis.hget("Position", instrument)
+        return ujson.loads(redis.hget("Position", instrument))
 
     @Pyro4.expose
     def query_price(self, instrument):
@@ -178,19 +203,26 @@ class TraderInterface:
 
     @Pyro4.expose
     def buy(self, instrument, price, volume):
-        return self.trader.send_order(instrument, price, volume, ApiStruct.D_Buy, ApiStruct.OF_Open)
+        order_id = self.insert_order(instrument, price, volume, ApiStruct.D_Buy, ApiStruct.OF_Open)['ID']
+        return self.trader.send_order(instrument, price, volume, ApiStruct.D_Buy, ApiStruct.OF_Open, order_id)
 
     @Pyro4.expose
     def buy_to_cover(self, instrument, price, volume):
-        return self.trader.send_order(instrument, price, volume, ApiStruct.D_Buy, ApiStruct.OF_Close)
+        order_id = self.insert_order(instrument, price, volume, ApiStruct.D_Buy, ApiStruct.OF_Close)['ID']
+        return self.trader.send_order(instrument, price, volume, ApiStruct.D_Buy, ApiStruct.OF_Close, order_id)
 
     @Pyro4.expose
     def sell_short(self, instrument, price, volume):
-        return self.trader.send_order(instrument, price, volume, ApiStruct.D_Sell, ApiStruct.OF_Open)
+        order_id = self.insert_order(instrument, price, volume, ApiStruct.D_Sell, ApiStruct.OF_Open)['ID']
+        return self.trader.send_order(instrument, price, volume, ApiStruct.D_Sell, ApiStruct.OF_Open, order_id)
 
     @Pyro4.expose
     def sell(self, instrument, price, volume):
-        return self.trader.send_order(instrument, price, volume, ApiStruct.D_Sell, ApiStruct.OF_Close)
+        order_id = self.insert_order(instrument, price, volume, ApiStruct.D_Sell, ApiStruct.OF_Close)['ID']
+        return self.trader.send_order(instrument, price, volume, ApiStruct.D_Sell, ApiStruct.OF_Close, order_id)
+
+    def insert_order(self, instrument, price, volume, direction, offset):
+
 
 
 if __name__ == "__main__":

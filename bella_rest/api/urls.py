@@ -10,6 +10,9 @@ router = DefaultRouter()
 router.register("ctp", views.CTPAccountViewSet, "CtpAccount")
 router.register("service", views.ServiceViewSet, "Service")
 router.register("task", views.TaskViewSet, "Task")
+router.register("order", views.OrderViewSet, "Order")
+router.register("ctp_order", views.CTPOrderViewSet, "CTPOrder")
+router.register("ctp_trade", views.CTPTradeViewSet, "CTPTrader")
 
 urlpatterns = router.urls
 urlpatterns += [

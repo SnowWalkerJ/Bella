@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from rest_framework.viewsets import ReadOnlyModelViewSet, ModelViewSet
 from rest_framework.views import APIView
 from rest_framework.schemas import AutoSchema
@@ -45,6 +47,22 @@ class OrderViewSet(ModelViewSet):
     queryset = Order.objects.all()
     serializer_class = OrderSerializer
 
+    def create(self, request):
+        serializer = self.serializer_class()
+        order = serializer.create(request.query_params)
+        order.save()
+        return Response({"ID": order})
+
+
+class CTPOrderViewSet(ModelViewSet):
+    queryset = CTPOrder.objects.all()
+    serializer_class = CTPOrderSerializer
+
+
+class CTPTradeViewSet(ModelViewSet):
+    queryset = CTPTrade.objects.all()
+    serializer_class = CTPTradeSerializer
+
 
 class TaskViewSet(ModelViewSet):
     queryset = Task.objects.all()
@@ -55,6 +73,12 @@ class InstrumentView(APIView):
     schema = AutoSchema([
         coreapi.Field("data", True, "form", description="instrument data"),
     ])
+
+    def get(self, request):
+        today = datetime.now().strftime("%Y-%m-%d")
+        serializer = InstrumentSerializer()
+        data = Instrument.objects.filter(ExpireDate__gt=today)
+        return Response(serializer.serialize(data))
 
     def put(self, request):
         data = request.data['data']

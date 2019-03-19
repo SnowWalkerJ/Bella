@@ -1,7 +1,7 @@
 from quant.common.logging import Logger
 from ._ctp import ApiStruct, MdApi
 from .utils import struct_to_dict
-from ..api import API
+from ..restful import api
 
 
 class Market(MdApi):
@@ -17,7 +17,7 @@ class Market(MdApi):
     ############# 主动API
 
     def get_contracts(self):
-        return API.get("instruments/list")
+        return apit.action("api", "instruments")
 
     def subscribe(self):
         """
