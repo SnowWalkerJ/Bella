@@ -34,7 +34,7 @@ class TraderBot(Trader):
             "Volume": pTrade.Volume,
             "TradeTime": parse(b" ".join([pTrade.TradeDate, pTrade.TradeTime]).decode()),
         }
-        api.action("api", "ctp_trade", params=data, action="POST")
+        api.action("ctp_trade", params=data, action="POST")
         self.query_position(pTrade.InstrumentID)
 
     def OnRtnOrder(self, pOrder):
@@ -155,7 +155,7 @@ class TraderBot(Trader):
             'InsertTime': datetime.now(),
         }
 
-        api.action("api", "ctp_order", params=record, action="POST")
+        api.action("ctp_order", params=record, action="POST")
         return orderref
 
     def cancel_order(self, instrument, order_ref, front_id, session_id):
@@ -203,26 +203,34 @@ class TraderInterface:
 
     @Pyro4.expose
     def buy(self, instrument, price, volume):
-        order_id = self.insert_order(instrument, price, volume, ApiStruct.D_Buy, ApiStruct.OF_Open)['ID']
+        order_id = self.insert_order(instrument, price, volume, ApiStruct.D_Buy, ApiStruct.OF_Open)
         return self.trader.send_order(instrument, price, volume, ApiStruct.D_Buy, ApiStruct.OF_Open, order_id)
 
     @Pyro4.expose
     def buy_to_cover(self, instrument, price, volume):
-        order_id = self.insert_order(instrument, price, volume, ApiStruct.D_Buy, ApiStruct.OF_Close)['ID']
+        order_id = self.insert_order(instrument, price, volume, ApiStruct.D_Buy, ApiStruct.OF_Close)
         return self.trader.send_order(instrument, price, volume, ApiStruct.D_Buy, ApiStruct.OF_Close, order_id)
 
     @Pyro4.expose
     def sell_short(self, instrument, price, volume):
-        order_id = self.insert_order(instrument, price, volume, ApiStruct.D_Sell, ApiStruct.OF_Open)['ID']
+        order_id = self.insert_order(instrument, price, volume, ApiStruct.D_Sell, ApiStruct.OF_Open)
         return self.trader.send_order(instrument, price, volume, ApiStruct.D_Sell, ApiStruct.OF_Open, order_id)
 
     @Pyro4.expose
     def sell(self, instrument, price, volume):
-        order_id = self.insert_order(instrument, price, volume, ApiStruct.D_Sell, ApiStruct.OF_Close)['ID']
+        order_id = self.insert_order(instrument, price, volume, ApiStruct.D_Sell, ApiStruct.OF_Close)
         return self.trader.send_order(instrument, price, volume, ApiStruct.D_Sell, ApiStruct.OF_Close, order_id)
 
     def insert_order(self, instrument, price, volume, direction, offset):
-
+        data = {
+            "InstrumentID": instrument,
+            "Direction": direction.decode(),
+            "Offset": offset.decode(),
+            "Price": price,
+            "Volume": volume,
+        }
+        resp = api.action("order", "create", params=data)
+        return resp['ID']
 
 
 if __name__ == "__main__":

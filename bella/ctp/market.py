@@ -17,7 +17,7 @@ class Market(MdApi):
     ############# 主动API
 
     def get_contracts(self):
-        return apit.action("api", "instruments")
+        return api.action("instruments", "list", params={}, action="GET")
 
     def subscribe(self):
         """

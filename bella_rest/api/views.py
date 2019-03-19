@@ -49,9 +49,16 @@ class OrderViewSet(ModelViewSet):
 
     def create(self, request):
         serializer = self.serializer_class()
-        order = serializer.create(request.query_params)
+        data = {
+            "InstrumentID": request.data["InstrumentID"],
+            "Price": request.data["Price"],
+            "Volume": int(request.data["Volume"]),
+            "Direction": request.data["Direction"],
+            "Offset": request.data["Offset"],
+        }
+        order = serializer.create(data)
         order.save()
-        return Response({"ID": order})
+        return Response({"ID": order.ID})
 
 
 class CTPOrderViewSet(ModelViewSet):
@@ -71,14 +78,13 @@ class TaskViewSet(ModelViewSet):
 
 class InstrumentView(APIView):
     schema = AutoSchema([
-        coreapi.Field("data", True, "form", description="instrument data"),
+        coreapi.Field("data", False, "form", description="instrument data"),
     ])
 
     def get(self, request):
         today = datetime.now().strftime("%Y-%m-%d")
-        serializer = InstrumentSerializer()
         data = Instrument.objects.filter(ExpireDate__gt=today)
-        return Response(serializer.serialize(data))
+        return Response([x.InstrumentID for x in data])
 
     def put(self, request):
         data = request.data['data']
