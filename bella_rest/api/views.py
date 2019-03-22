@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from django.shortcuts import get_object_or_404
 from rest_framework.viewsets import ReadOnlyModelViewSet, ModelViewSet
 from rest_framework.views import APIView
 from rest_framework.schemas import AutoSchema
@@ -64,6 +65,18 @@ class OrderViewSet(ModelViewSet):
 class CTPOrderViewSet(ModelViewSet):
     queryset = CTPOrder.objects.all()
     serializer_class = CTPOrderSerializer
+
+    def partial_update(self, request, pk=None):
+        queryset = CTPOrder.objects.all()
+        order = get_object_or_404(queryset, pk=pk).OrderID
+        related_ctp_orders = CTPOrder.objects.filter(OrderID=order)
+        volumes_traded = sum((o.VolumesTraded for o in related_ctp_orders), 0)
+        order.VolumesTraded = volumes_traded
+        if order.VolumesTraded == order.VolumesTotal and not order.Finished:
+            order.Finished = True
+            order.CompleteTime = datetime.now()
+        order.save()
+        return super().partial_update(request, id)
 
 
 class CTPTradeViewSet(ModelViewSet):

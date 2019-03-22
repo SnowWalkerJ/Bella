@@ -12,7 +12,7 @@ from .exception_handler import handle_exceptions
 from .restful import api
 
 
-def status_monitor(name):
+def status_monitor(name, loop=None):
     """
     装饰器
 
@@ -26,7 +26,7 @@ def status_monitor(name):
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            ioloop = asyncio.get_event_loop()
+            ioloop = loop or asyncio.get_event_loop()
             ioloop.call_soon(heartbeat, name)
             if iscoroutinefunction(func):
                 coro = func(*args, **kwargs, loop=ioloop)

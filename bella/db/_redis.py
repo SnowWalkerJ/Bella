@@ -16,9 +16,10 @@ redis = Redis(
     password=REDIS_PASSWD
 )
 
-async def create_aredis():
+async def create_aredis(db=REDIS_DB, loop=None):
     return await create_redis(
         address=(REDIS_HOST, REDIS_PORT),
-        db=REDIS_DB,
-        password=REDIS_PASSWD
+        db=db,
+        password=REDIS_PASSWD,
+        loop=loop
     )
