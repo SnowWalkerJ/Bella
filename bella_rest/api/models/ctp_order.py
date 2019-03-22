@@ -23,7 +23,7 @@ class CTPOrder(models.Model):
     CancelTime = models.DateTimeField(null=True)
     CompleteTime = models.DateTimeField(null=True)
     StatusMsg = models.CharField(blank=True, null=True, max_length=80)
-    Finished = models.BooleanField()
+    Finished = models.BooleanField(default=False)
 
     class Meta:
         indexes = [
