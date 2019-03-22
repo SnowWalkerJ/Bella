@@ -1,4 +1,5 @@
 from datetime import datetime
+from dateutil.parser import parse
 
 from django.shortcuts import get_object_or_404
 from rest_framework.viewsets import ReadOnlyModelViewSet, ModelViewSet
@@ -53,9 +54,14 @@ class OrderViewSet(ModelViewSet):
         data = {
             "InstrumentID": request.data["InstrumentID"],
             "Price": request.data["Price"],
-            "Volume": int(request.data["Volume"]),
+            "VolumesTraded": 0,
+            "VolumesTotal": int(request.data["VolumesTotal"]),
             "Direction": request.data["Direction"],
             "Offset": request.data["Offset"],
+            "InsertTime": parse(request.data["InsertTime"]),
+            "SplitSleepAfterSubmit": float(request.data["SplitSleepAfterSubmit"]),
+            "SplitSleepAfterCancel": float(request.data["SplitSleepAfterCancel"]),
+            "SplitPercent": float(request.data["SplitPercent"]),
         }
         order = serializer.create(data)
         order.save()
@@ -67,6 +73,7 @@ class CTPOrderViewSet(ModelViewSet):
     serializer_class = CTPOrderSerializer
 
     def partial_update(self, request, pk=None):
+        result = super().partial_update(request, id)
         queryset = CTPOrder.objects.all()
         order = get_object_or_404(queryset, pk=pk).OrderID
         related_ctp_orders = CTPOrder.objects.filter(OrderID=order)
@@ -76,7 +83,7 @@ class CTPOrderViewSet(ModelViewSet):
             order.Finished = True
             order.CompleteTime = datetime.now()
         order.save()
-        return super().partial_update(request, id)
+        return result
 
 
 class CTPTradeViewSet(ModelViewSet):
@@ -131,3 +138,11 @@ class BarDataView(APIView):
         date_range = DateRange(start_dt, end_dt)
         data = lib.read(contract, date_range=date_range)
         return data.to_dict(orient='index')
+
+
+class QueryOrderFromCTPOrder(APIView):
+    def get(self, request, pk):
+        queryset = CTPOrder.objects.all()
+        ctp_order = get_object_or_404(queryset, pk=pk)
+        return Response({"OrderID": ctp_order.OrderID.ID})
+

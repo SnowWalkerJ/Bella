@@ -59,11 +59,11 @@ class TradingAPI:
         }
         resp = api.action("ctp_order", "create", params=data)
 
-    @classmethod
-    def insert_ctp_trade(cls, pTrade):
+    @staticmethod
+    def insert_ctp_trade(pTrade):
         data = {
             "TradeID": pTrade.TradeID.decode(),
-            "CTPOrderID": cls.query_ctp_order(pTrade.BrokerID, pTrade.InvestorID, pTrade.OrderRef),
+            "CTPOrderID": pTrade.OrderRef,
             "Price": pTrade.Price,
             "Volume": pTrade.Volume,
             "TradeTime": b" ".join([pTrade.TradeDate, pTrade.TradeTime]).decode(),
@@ -100,6 +100,10 @@ class TradingAPI:
             'Finished': finished,
         }
         api.action("ctp_order", "partial_update", params=data)
+
+    @staticmethod
+    def query_order(orderref):
+        return api.action("query_order_from_ctporder", params={"id": orderref})['OrderID']
 
 
 class TraderBot(Trader):
