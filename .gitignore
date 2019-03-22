@@ -11,4 +11,3 @@ build/
 dist/
 *.egg-info/
 db.sqlite3
-migrations/
