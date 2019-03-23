@@ -9,6 +9,7 @@ class CTPTrade(models.Model):
     CTPOrderID = models.ForeignKey("CTPOrder", on_delete=models.CASCADE)
 
     # Fields
+    Account = models.ForeignKey("CTPAccount", on_delete=models.CASCADE)
     Price = models.DecimalField(max_digits=7, decimal_places=2)
     Volume = models.IntegerField()
     TradeTime = models.DateTimeField()

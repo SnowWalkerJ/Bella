@@ -19,11 +19,21 @@ from bella.db._redis import redis, create_aredis
 from bella.service import status_monitor
 
 
+def reformat_date(trading_day, time):
+    trading_day = trading_day.decode()
+    time = time.decode()
+    year = trading_day[:4]
+    month = trading_day[4:6]
+    day = trading_day[-2:]
+    date = "-".join((year, month, day))
+    return " ".join((date, time))
+
+
 class TradingAPI:
-    # TODO: query_order, query_ctp_order
     @staticmethod
-    def insert_order(instrument, price, volume, direction, offset, split_options):
+    def insert_order(account, instrument, price, volume, direction, offset, split_options):
         data = {
+            "Account": account,
             "InstrumentID": instrument,
             "Direction": direction.decode(),
             "Offset": offset.decode(),
@@ -40,14 +50,17 @@ class TradingAPI:
         return resp['ID']
 
     @staticmethod
-    def insert_ctp_order(order_id, pInputOrder):
+    def insert_ctp_order(account, order_id, pInputOrder, front_id):
         data = {
+            "Account": account,
+
             "BrokerID": pInputOrder.BrokerID.decode(),
             "InvestorID": pInputOrder.InvestorID.decode(),
-            "OrderRef": pInputOrder.OrderRed.decode(),
+            "OrderRef": pInputOrder.OrderRef.decode(),
 
             "OrderID": order_id,
 
+            "FrontID": front_id,
             "InstrumentID": pInputOrder.InstrumentID.decode(),
             "Direction": pInputOrder.Direction.decode(),
             "Offset": pInputOrder.CombOffsetFlag.decode(),
@@ -60,28 +73,30 @@ class TradingAPI:
         resp = api.action("ctp_order", "create", params=data)
 
     @staticmethod
-    def insert_ctp_trade(pTrade):
+    def insert_ctp_trade(account, pTrade):
         data = {
+            "Account": account,
             "TradeID": pTrade.TradeID.decode(),
-            "CTPOrderID": pTrade.OrderRef,
+            "CTPOrderID": pTrade.OrderRef.decode(),
             "Price": pTrade.Price,
             "Volume": pTrade.Volume,
-            "TradeTime": b" ".join([pTrade.TradeDate, pTrade.TradeTime]).decode(),
+            "TradeTime": reformat_date(pTrade.TradeDate, pTrade.TradeTime)
         }
+        print(data['TradeTime'])
         api.action("ctp_trade", "create", params=data)
 
     @classmethod
     def update_ctp_order(cls, pOrder):
         order_id = cls.query_order(pOrder.OrderRef.decode())
         complete_time = cancel_time = None
-        if pOrder.VolumesTotal == 0:
+        if pOrder.VolumeTotal == 0:
             complete_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         if pOrder.CancelTime:
-            cancel_time = b" ".join([pOrder.TradingDay, pOrder.CancelTime]).decode()
-        update_time = b" ".join([pOrder.TradingDay, pOrder.UpdateTime]).decode()
+            cancel_time = reformat_date(pOrder.TradingDay, pOrder.CancelTime)
+        update_time = reformat_date(pOrder.TradingDay, pOrder.UpdateTime)
         finished = bool(complete_time or cancel_time)
         data = {
-            'id': pOrder.OrderRef.decode(),
+            'OrderRef': pOrder.OrderRef.decode(),
             # 'BrokerID': pOrder.BrokerID.decode(),
             # 'InvestorID': pOrder.InvestorID.decode(),
             # 'OrderRef': pOrder.OrderRef.decode(),
@@ -92,21 +107,28 @@ class TradingAPI:
             # 'Price': pOrder.LimitPrice,
             # 'VolumesTotal': pOrder.VolumeTotalOriginal,
             # 'FrontID': pOrder.FrontID.decode(),
-            'VolumesTraded': pOrder.VolumesTraded,
+            'VolumesTraded': pOrder.VolumeTraded,
             'UpdateTime': update_time,
             'CompleteTime': complete_time,
             'CancelTime': cancel_time,
-            'StatusMsg': pOrder.StatusMsg.decode(),
+            'StatusMsg': pOrder.StatusMsg.decode("gbk"),
             'Finished': finished,
         }
         api.action("ctp_order", "partial_update", params=data)
 
     @staticmethod
     def query_order(orderref):
-        return api.action("query_order_from_ctporder", params={"id": orderref})['OrderID']
+        return api.action("query_order_from_ctporder", "read", params={"id": orderref})['OrderID']
 
 
 class TraderBot(Trader):
+    def __init__(self, account_name):
+        self.account_name = account_name
+        account_info = api.action("ctp", "read", params={"Name": "simnow_dev"})
+        super().__init__(account_info['TdHost'].encode(),
+                         account_info['UserID'].encode(),
+                         account_info['BrokerID'].encode(),
+                         account_info['Password'].encode())
 
     ############## 通知
 
@@ -114,8 +136,10 @@ class TraderBot(Trader):
         """成交通知"""
         redis.publish("Trader:OnRtnTrade", ujson.dumps({"pTrade": struct_to_dict(pTrade)}))
         super().OnRtnTrade(pTrade)
-        TradingAPI.insert_ctp_trade(pTrade)
-        self.query_position(pTrade.InstrumentID)
+        TradingAPI.insert_ctp_trade(self.account_name, pTrade)
+        self.getPosition()
+        self.getAccount()
+        self.getInvestor()
 
     def OnRtnOrder(self, pOrder):
         """
@@ -172,45 +196,32 @@ class TraderBot(Trader):
 
     def OnRspQryInvestorPosition(self, pInvestorPosition, pRspInfo, nRequestID, bIsLast):
         """请求查询投资者持仓响应"""
-        pInvestor = struct_to_dict(pInvestor)
-        # Redis Publish
-        data = {
-            "pInvestorPosition": pInvestor,
-            "pRspInfo": struct_to_dict(pRspInfo),
-            "nRequestID": nRequestID,
-            "bIsLast": bIsLast,
-        }
-        redis.publish("Trader:OnRspQryInvestorPosition", ujson.dumps(data))
+        data = struct_to_dict(pInvestorPosition)
+
+        D = "L" if data['PosiDirection'] == '2' else 'S'
+
+        position = ujson.loads(redis.hget("Position", data['InstrumentID']) or "{}")
+        position[f'Total{D}Position'] = data['Position']
+        position[f'Yd{D}Position'] = data['YdPosition']
+        position[f'Today{D}Position'] = data['TodayPosition']
+        position['NetAmount'] = position.get('TotalLPosition', 0) - position.get('TotalSPosition', 0)
 
         # Redis Status
-        redis.hset(Position, pInvestor['InstrumentID'], pInvestor)
-
-        super().OnRspQryInvestorPosition(pInvestorPosition, pRspInfo, nRequestID, bIsLast)
-
-    def OnRspQryInvestorPositionDetail(self, pInvestorPositionDetail, pRspInfo, nRequestID, bIsLast):
-        """请求查询投资者仓位明细响应"""
-        data = {
-            "pInvestorPositionDetail": struct_to_dict(pInvestor),
-            "pRspInfo": struct_to_dict(pRspInfo),
-            "nRequestID": nRequestID,
-            "bIsLast": bIsLast,
-        }
-        redis.publish("Trader:OnRspQryInvestorPositionDetail", ujson.dumps(data))
-        super().OnRspQryInvestorPositionDetail(pInvestorPositionDetail, pRspInfo, nRequestID, bIsLast)
+        redis.hset("Position", data['InstrumentID'], ujson.dumps(position))
 
     def send_order(self, instrument, price, volume, direction, offset, order_id):
-        orderref = self.inc_orderref_id()
+        orderref = str(self.inc_orderref_id())
         order = ApiStruct.InputOrder(
             BrokerID=self.broker_id,
             InvestorID=self.investor_id,
             InstrumentID=instrument.encode(),
-            OrderRef=str(orderref).encode(),
+            OrderRef=orderref.encode(),
             UserID=self.investor_id,
             OrderPriceType=ApiStruct.OPT_LimitPrice,
             LimitPrice=price,
             VolumeTotalOriginal=volume,
-            Direction=direction,
-            CombOffsetFlag=offset,
+            Direction=direction.encode(),
+            CombOffsetFlag=offset.encode(),
             CombHedgeFlag=ApiStruct.HF_Speculation,
             ContingentCondition=ApiStruct.CC_Immediately,
             ForceCloseReason=ApiStruct.FCC_NotForceClose,
@@ -223,7 +234,7 @@ class TraderBot(Trader):
         self.ReqOrderInsert(order, self.inc_request_id())
 
         # API
-        TradingAPI.insert_ctp_order(order_id, order)
+        TradingAPI.insert_ctp_order(self.account_name, order_id, order, self.front_id)
         return orderref
 
     def cancel_order(self, instrument, order_ref, front_id, session_id):
@@ -231,8 +242,8 @@ class TraderBot(Trader):
         撤单
         """
         req = ApiStruct.InputOrderAction()
-        req.InstrumentID = instrument
-        req.OrderRef = order_ref
+        req.InstrumentID = instrument.encode()
+        req.OrderRef = order_ref.encode()
         req.FrontID = front_id
         req.SessionID = session_id
 
@@ -249,56 +260,35 @@ class TraderBot(Trader):
         self.ReqQryInvestorPosition(req, self.inc_request_id())
 
 
-class RedisDB:
-    def add_task(self, order_id, instrument, price, volume, direction, offset, split_options):
-        data = {
-            "order_id": order_id,
-            "instrument": instrument,
-            "price": price,
-            "volume": volume,
-            "direction": direction,
-            "offset": offset,
-            "split_options": ujson.dumps(split_options),
-        }
-        redis.hmset("Trader:Task", order_id, ujson.dumps(data))
-
-    def list_tasks(self):
-        return redis.hkeys("Trader:Task")
-
-    def get_task(self, order_id):
-        return ujson.loads(redis.hget("Trader:Task", order_id))
-
-    def remove_task(self, order_id):
-        redis.hdel("Trader:Task", order_id)
-
-
 class TaskManager:
-    def __init__(self, trader: TraderBot, loop: asyncio.AbstractEventLoop):
+    def __init__(self, trader: TraderBot, loop: asyncio.AbstractEventLoop=None):
         self.trader = trader
         self.loop = loop
-        self.db = RedisDB()
 
-    def submit(self, task):
-        if task['split_options'] is None:
-            task['split_options'] = {
-                "sleep_after_submit": 1,
-                "sleep_after_cancel": 1,
-                "split_percent": 1,
-            }
-        self.db.add_task(*task)
-        asyncio.ensure_future(self.trade(task['order_id']), loop=self.loop)
+    def submit(self, order_id):
+        asyncio.ensure_future(self.trade(order_id), loop=self.loop)
+
+    def get_task(self, order_id):
+        print(order_id)
+        task = api.action("order", "read", params={"ID": order_id})
+        task['split_options'] = {
+            "sleep_after_submit": task['SplitSleepAfterSubmit'],
+            "sleep_after_cancel": task['SplitSleepAfterCancel'],
+            "split_percent": task['SplitPercent'],
+        }
+        return task
 
     async def trade(self, order_id):
-        task = self.db.get_task(order_id)
-        if task['volume'] == 0:
-            self.db.remove_task(order_id)
+        task = self.get_task(order_id)
+        volumes_left = task['VolumesTotal'] - task['VolumesTraded']
+        if not volumes_left:
             return
-        trade_volume = self.decide_volume(task['volume'], task['split_options'])
-        price = self.decide_price(task['instrument'], task['price'])
-        orderref = self.trader.send_order(task['instrument'], price, trade_volume, task['direction'], task['offset'], order_id)
-        await asyncio.sleep(split_options['sleep_after_submit'], loop=self.loop)
-        self.trader.cancel_order(task['instrument'], order_ref, self.trader.front_id, self.trader.session_id)
-        await asyncio.sleep(split_options['sleep_after_cancel'], loop=self.loop)
+        trade_volume = self.decide_volume(volumes_left, task['split_options'])
+        price = self.decide_price(task['InstrumentID'], task['Direction'], task['Price'])
+        orderref = self.trader.send_order(task['InstrumentID'], price, trade_volume, task['Direction'], task['Offset'], order_id)
+        await asyncio.sleep(task['split_options']['sleep_after_submit'], loop=self.loop)
+        self.trader.cancel_order(task['InstrumentID'], orderref, self.trader.front_id, self.trader.session_id)
+        await asyncio.sleep(task['split_options']['sleep_after_cancel'], loop=self.loop)
         await self.trade(order_id)
 
     @staticmethod
@@ -307,6 +297,7 @@ class TaskManager:
         volume = min(max(round(percent * total_volume), 1), total_volume)
         return volume
 
+    @staticmethod
     def decide_price(instrument, direction, price):
         current_prices = ujson.loads(redis.hget("Price", instrument))
         if price == "CP":
@@ -341,15 +332,16 @@ class TraderInterface:
         "sell_short"
     ]
 
-    def __init__(self):
-        account = api.action("ctp", "read", params={"Name": "simnow"})
-        self.trader = TraderBot(account['TdHost'].encode(),
-                                account['UserID'].encode(),
-                                account['BrokerID'].encode(),
-                                account['Password'].encode())
+    def __init__(self, account_name):
+        self.account_name = account_name
+        self.loop = None
+        self.trader = TraderBot(account_name)
+        self.trader.login()
+        self.task_manager = TaskManager(self.trader)
 
     def query_position(self, instrument):
-        return ujson.loads(redis.hget("Position", instrument))
+        empty_position = "{'TotalLPosition': 0, 'YdLPosition': 0, 'TodayLPosition': 0, 'NetAmount': 0}"
+        return ujson.loads(redis.hget("Position", instrument) or empty_position)
 
     def query_price(self, instrument):
         return ujson.loads(redis.hget("Price", instrument))
@@ -371,11 +363,16 @@ class TraderInterface:
         return self.transaction_split(instrument, price, volume, direction, offset, split_options)
 
     def transaction_split(self, instrument, price, volume, direction, offset, split_options):
-        order_id = TradingAPI.insert_order(instrument, price, volume, direction, offset, split_options)
-        self.task_queue.append((order_id, instrument, price, volume, direction, offset, split_options))
+        if split_options is None:
+            split_options = {
+                "sleep_after_submit": 1,
+                "sleep_after_cancel": 1,
+                "split_percent": 1,
+            }
+        order_id = TradingAPI.insert_order(self.account_name, instrument, price, volume, direction, offset, split_options)
+        self.task_manager.submit(order_id)
         asyncio.sleep(0.01, loop=self.loop)
         return {'order_id': order_id}
-
 
     @status_monitor("TradeBot", loop=zmq.asyncio.ZMQEventLoop())
     async def run(self, loop):
@@ -398,4 +395,4 @@ class TraderInterface:
 
 
 if __name__ == "__main__":
-    TraderInterface().run()
+    TraderInterface('simnow_dev').run()

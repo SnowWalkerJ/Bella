@@ -110,18 +110,18 @@ class Trader(TraderApi):
 
     def OnRtnTrade(self, pTrade):
         """成交通知"""
-        Logger.info("OnRtnTrade", pTrade)
+        Logger.info("OnRtnTrade", struct_to_dict(pTrade))
 
     def OnRtnOrder(self, pOrder):
         """
         报单通知（通过参数检测->已经提交成功）
         """
         # self.orderref_mapper[pOrder.OrderRef] = pOrder.CombOffsetFlag  # 记录开仓 平昨 平今标记        
-        Logger.info("OnRtnOrder", pOrder)
+        Logger.info("OnRtnOrder", struct_to_dict(pOrder))
 
     def OnRtnInstrumentStatus(self, pInstrumentStatus):
         """合约交易状态通知"""
-        Logger.info("OnRtnInstrumentStatus", pInstrumentStatus)
+        Logger.info("OnRtnInstrumentStatus", struct_to_dict(pInstrumentStatus))
         pass
 
     def OnRtnTradingNotice(self, pTradingNoticeInfo):
@@ -182,31 +182,6 @@ class Trader(TraderApi):
     def OnRspQryInvestor(self, pInvestor, pRspInfo, nRequestID, bIsLast):
         """请求查询投资者响应"""
         Logger.info("OnRspQryInvestor", pInvestor, pRspInfo, nRequestID, bIsLast)
-
-    def OnRspQryInvestorPosition(self, pInvestorPosition, pRspInfo, nRequestID, bIsLast):
-        """请求查询投资者持仓响应"""
-        if bIsLast and not pInvestorPosition and not pRspInfo:
-            self.investor_position.clear()  # 空仓
-            return
-        pos_mapper = {'2': 'buy', '3': 'sell'}
-        if pInvestorPosition.Position > 0:
-            key = ":".join([pInvestorPosition.InstrumentID, pos_mapper[pInvestorPosition.PosiDirection]])
-            self.__positions_cache[key] = {
-                "instrument_id"        : pInvestorPosition.InstrumentID,
-                "direction"            : pInvestorPosition.PosiDirection,
-                "type"                 : pos_mapper[pInvestorPosition.PosiDirection],
-                "position"             : pInvestorPosition.Position,
-                "yd_position"          : pInvestorPosition.YdPosition,
-                "today_position"       : pInvestorPosition.TodayPosition,
-                "time"                 : time.strftime("%Y-%m-%d %H:%M:%S", time.localtime()),
-                "pre_settlement_price" : pInvestorPosition.PreSettlementPrice,
-                "settlement_price"     : pInvestorPosition.SettlementPrice,
-                "use_margin"           : pInvestorPosition.UseMargin,
-                "position_profit"      : pInvestorPosition.PositionProfit,
-                "trading_day"          : pInvestorPosition.TradingDay,
-            }
-        if bIsLast:
-            self.investor_positions = self.__positions_cache.copy()
 
     def OnRspQryInvestorPositionDetail(self, pInvestorPositionDetail, pRspInfo, nRequestID, bIsLast):
         """请求查询投资者仓位明细响应"""

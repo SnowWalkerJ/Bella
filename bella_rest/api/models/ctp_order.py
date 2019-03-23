@@ -11,7 +11,8 @@ class CTPOrder(models.Model):
     OrderID = models.ForeignKey("Order", on_delete=models.CASCADE)
 
     # Fields
-    FrontID = models.CharField(max_length=20)
+    Account = models.ForeignKey("CTPAccount", on_delete=models.CASCADE)
+    FrontID = models.CharField(max_length=20, blank=True)
     InstrumentID = models.CharField(max_length=20)
     Direction = models.CharField(max_length=1)
     Offset = models.CharField(max_length=1)

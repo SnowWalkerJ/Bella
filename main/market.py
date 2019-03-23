@@ -72,7 +72,7 @@ class MarketServer(Market):
         channel = f"TICK:{instrument_id}"
         data = ujson.dumps(data)
         redis.publish(channel, data)
-        redis.hset("Price", instrument_id, ujson.dumps(data))
+        redis.hset("Price", instrument_id, data)
 
     def OnRtnDepthMarketData(self, pDepthMarketData):
         self.add_callback(self.handler_data, pDepthMarketData)
