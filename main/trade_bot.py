@@ -18,6 +18,8 @@ from bella.config import CONFIG
 from bella.db._redis import redis, create_aredis
 from bella.service import status_monitor
 
+# TODO: logger
+
 
 def reformat_date(trading_day, time):
     trading_day = trading_day.decode()
@@ -30,6 +32,10 @@ def reformat_date(trading_day, time):
 
 
 class TradingAPI:
+    @staticmethod
+    def get_ctp_order(orderref):
+        return api.action("ctp_order", "read", params={"OrderRef": orderref})
+
     @staticmethod
     def insert_order(account, instrument, price, volume, direction, offset, split_options):
         data = {
@@ -82,18 +88,20 @@ class TradingAPI:
             "Volume": pTrade.Volume,
             "TradeTime": reformat_date(pTrade.TradeDate, pTrade.TradeTime)
         }
-        print(data['TradeTime'])
         api.action("ctp_trade", "create", params=data)
 
     @classmethod
     def update_ctp_order(cls, pOrder):
-        order_id = cls.query_order(pOrder.OrderRef.decode())
+        try:
+            order_id = cls.query_order(pOrder.OrderRef.decode())
+        except ValueError:
+            return
         complete_time = cancel_time = None
         if pOrder.VolumeTotal == 0:
-            complete_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        if pOrder.CancelTime:
-            cancel_time = reformat_date(pOrder.TradingDay, pOrder.CancelTime)
-        update_time = reformat_date(pOrder.TradingDay, pOrder.UpdateTime)
+            complete_time = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+        if pOrder.StatusMsg.decode("gbk") == "已撤单":
+            cancel_time = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+        update_time = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
         finished = bool(complete_time or cancel_time)
         data = {
             'OrderRef': pOrder.OrderRef.decode(),
@@ -118,7 +126,11 @@ class TradingAPI:
 
     @staticmethod
     def query_order(orderref):
-        return api.action("query_order_from_ctporder", "read", params={"id": orderref})['OrderID']
+        rsp = api.action("query_order_from_ctporder", "read", params={"id": orderref})
+        if rsp:
+            return rsp['OrderID']
+        else:
+            raise ValueError(f"Can't find CTPOrder {orderref}")
 
 
 class TraderBot(Trader):
@@ -287,7 +299,9 @@ class TaskManager:
         price = self.decide_price(task['InstrumentID'], task['Direction'], task['Price'])
         orderref = self.trader.send_order(task['InstrumentID'], price, trade_volume, task['Direction'], task['Offset'], order_id)
         await asyncio.sleep(task['split_options']['sleep_after_submit'], loop=self.loop)
-        self.trader.cancel_order(task['InstrumentID'], orderref, self.trader.front_id, self.trader.session_id)
+        ctp_order = TradingAPI.get_ctp_order(orderref)
+        if not ctp_order.Finished:
+            self.trader.cancel_order(task['InstrumentID'], orderref, self.trader.front_id, self.trader.session_id)
         await asyncio.sleep(task['split_options']['sleep_after_cancel'], loop=self.loop)
         await self.trade(order_id)
 

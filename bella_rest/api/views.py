@@ -50,8 +50,10 @@ class OrderViewSet(ModelViewSet):
     serializer_class = OrderSerializer
 
     def create(self, request):
+        account = get_object_or_404(CTPAccount.objects.all(), pk=request.data["Account"])
         serializer = self.serializer_class()
         data = {
+            "Account": account,
             "InstrumentID": request.data["InstrumentID"],
             "Price": request.data["Price"],
             "VolumesTraded": 0,
