@@ -145,4 +145,3 @@ class QueryOrderFromCTPOrder(APIView):
         queryset = CTPOrder.objects.all()
         ctp_order = get_object_or_404(queryset, pk=pk)
         return Response({"OrderID": ctp_order.OrderID.ID})
-
