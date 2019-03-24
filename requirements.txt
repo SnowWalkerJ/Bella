@@ -9,3 +9,4 @@ pandas
 markdown
 coreapi
 zmq
+whitenoise

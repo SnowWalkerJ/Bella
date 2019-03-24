@@ -121,7 +121,7 @@ class Trader(TraderApi):
 
     def OnRtnInstrumentStatus(self, pInstrumentStatus):
         """合约交易状态通知"""
-        Logger.info("OnRtnInstrumentStatus", struct_to_dict(pInstrumentStatus))
+        # Logger.info("OnRtnInstrumentStatus", struct_to_dict(pInstrumentStatus))
         pass
 
     def OnRtnTradingNotice(self, pTradingNoticeInfo):
