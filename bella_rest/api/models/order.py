@@ -14,6 +14,6 @@ class Order(models.Model):
     SplitSleepAfterSubmit = models.FloatField()
     SplitSleepAfterCancel = models.FloatField()
     SplitPercent = models.FloatField()
-    # CancelTime = models.DateTimeField(null=True)
+    CancelTime = models.DateTimeField(null=True)
     CompleteTime = models.DateTimeField(null=True)
     Finished = models.BooleanField(default=False)

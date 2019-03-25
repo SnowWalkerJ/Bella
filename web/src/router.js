@@ -20,5 +20,12 @@ const routers = [
         },
         component: (resolve) => require(['./views/service/monitor.vue'], resolve)
     },
+    {
+        path: '/trade/trade',
+        meta: {
+            title: '交易系统'
+        },
+        component: (resolve) => require(['./views/trade/trade.vue'], resolve)
+    },
 ];
 export default routers;

@@ -1,5 +1,8 @@
 # Bella CTP 交易平台
 
+Bella是一个CTP交易平台，包含了行情接收转存、拆单、管理交易等功能。
+它由三部分组成：底层（行情）交易程序、Restful API、网页监控界面。
+
 ## 环境变量
 
 - BELLA_MONGO_HOST

@@ -20,6 +20,10 @@ api = API()
 
 
 def patch_coreapi():
+    """
+    coreapi自带的这个函数会导致如果path和data里有相同的参数，其中一个会被丢弃，并可能导致错误。
+    本补丁确保出现在不同位置的参数都能正确发挥作用。
+    """
     from collections import defaultdict
     import coreapi.transports.http
     from coreapi.transports.http import Params

@@ -54,6 +54,13 @@
             <Layout>
                 <Sider hide-trigger :style="{background: '#fff'}">
                     <Menu class="high" active-name="monitor" theme="light" width="auto" :open-names="['service']">
+                        <Submenu name="trade">
+                            <template slot="title">
+                                <Icon type="logo-bitcoin"></Icon>
+                                交易
+                            </template>
+                            <MenuItem to="/trade/trade" name="trade"><Icon type="ios-card"/>交易系统</MenuItem>
+                        </Submenu>
                         <Submenu name="service">
                             <template slot="title">
                                 <Icon type="ios-cloud"></Icon>

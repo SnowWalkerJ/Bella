@@ -105,16 +105,6 @@ class TradingAPI:
         finished = bool(complete_time or cancel_time)
         data = {
             'OrderRef': pOrder.OrderRef.decode(),
-            # 'BrokerID': pOrder.BrokerID.decode(),
-            # 'InvestorID': pOrder.InvestorID.decode(),
-            # 'OrderRef': pOrder.OrderRef.decode(),
-            # 'OrderID': order_id,
-            # 'InstrumentID': pOrder.InstrumentID.decode(),
-            # 'Direction': pOrder.Direction.decode(),
-            # 'Offset': pOrder.Offset.decode(),
-            # 'Price': pOrder.LimitPrice,
-            # 'VolumesTotal': pOrder.VolumeTotalOriginal,
-            # 'FrontID': pOrder.FrontID.decode(),
             'VolumesTraded': pOrder.VolumeTraded,
             'UpdateTime': update_time,
             'CompleteTime': complete_time,
@@ -281,7 +271,6 @@ class TaskManager:
         asyncio.ensure_future(self.trade(order_id), loop=self.loop)
 
     def get_task(self, order_id):
-        print(order_id)
         task = api.action("order", "read", params={"ID": order_id})
         task['split_options'] = {
             "sleep_after_submit": task['SplitSleepAfterSubmit'],
@@ -292,12 +281,17 @@ class TaskManager:
 
     async def trade(self, order_id):
         task = self.get_task(order_id)
-        volumes_left = task['VolumesTotal'] - task['VolumesTraded']
-        if not volumes_left:
+        if task['Finished']:
             return
+        volumes_left = task['VolumesTotal'] - task['VolumesTraded']
         trade_volume = self.decide_volume(volumes_left, task['split_options'])
         price = self.decide_price(task['InstrumentID'], task['Direction'], task['Price'])
-        orderref = self.trader.send_order(task['InstrumentID'], price, trade_volume, task['Direction'], task['Offset'], order_id)
+        orderref = self.trader.send_order(task['InstrumentID'],
+                                          price,
+                                          trade_volume,
+                                          task['Direction'],
+                                          task['Offset'],
+                                          order_id)
         await asyncio.sleep(task['split_options']['sleep_after_submit'], loop=self.loop)
         ctp_order = TradingAPI.get_ctp_order(orderref)
         if not ctp_order.Finished:
