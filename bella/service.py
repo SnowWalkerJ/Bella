@@ -26,12 +26,17 @@ def status_monitor(name, loop=None):
     def decorator(func):
         @wraps(func)
         def wrapper(*args, **kwargs):
-            ioloop = loop or asyncio.get_event_loop()
-            ioloop.call_soon(heartbeat, name)
+            nonlocal loop
+            if loop is None:
+                loop = asyncio.get_event_loop()
+            else:
+                asyncio.set_event_loop(loop)
+
+            loop.call_soon(heartbeat, name)
+
             if iscoroutinefunction(func):
-                coro = func(*args, **kwargs, loop=ioloop)
-                future = asyncio.ensure_future(coro, loop=ioloop)
-                ioloop.run_until_complete(future)
+                coro = func(*args, **kwargs, loop=loop)
+                loop.run_until_complete(coro)
             else:
                 func(*args, **kwargs)
         return wrapper

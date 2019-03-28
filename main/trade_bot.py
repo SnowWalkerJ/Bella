@@ -5,8 +5,6 @@ import asyncio
 from datetime import datetime
 
 import ujson
-from dateutil.parser import parse
-from aioredis.pubsub import Receiver
 import zmq
 import zmq.asyncio
 
@@ -19,6 +17,12 @@ from bella.db._redis import redis, create_aredis
 from bella.service import status_monitor
 
 # TODO: logger
+
+
+class OrderStatus:
+    INACTIVE = 0
+    RUNNING = 1
+    FINISHED = 2
 
 
 def reformat_date(trading_day, time):
@@ -50,7 +54,7 @@ class TradingAPI:
             "SplitSleepAfterSubmit": split_options['sleep_after_submit'],
             "SplitSleepAfterCancel": split_options['sleep_after_cancel'],
             "SplitPercent": split_options['split_percent'],
-            "Finished": False,
+            "Status": OrderStatus.INACTIVE,
         }
         resp = api.action("order", "create", params=data)
         return resp['ID']
@@ -137,7 +141,7 @@ class TraderBot(Trader):
     def OnRtnTrade(self, pTrade):
         """成交通知"""
         redis.publish("Trader:OnRtnTrade", ujson.dumps({"pTrade": struct_to_dict(pTrade)}))
-        super().OnRtnTrade(pTrade)
+        # super().OnRtnTrade(pTrade)
         TradingAPI.insert_ctp_trade(self.account_name, pTrade)
         self.getPosition()
         self.getAccount()
@@ -149,7 +153,7 @@ class TraderBot(Trader):
         """
         # redis.publish("Trader:OnRtnOrder", ujson.dumps(struct_to_dict(pOrder)))
         TradingAPI.update_ctp_order(pOrder)
-        super().OnRtnOrder(pOrder)
+        # super().OnRtnOrder(pOrder)
 
     def OnRtnInstrumentStatus(self, pInstrumentStatus):
         """合约交易状态通知"""
@@ -211,6 +215,14 @@ class TraderBot(Trader):
         # Redis Status
         redis.hset("Position", data['InstrumentID'], ujson.dumps(position))
 
+    def OnErrRtnOrderInsert(self, pInputOrder, pRspInfo):
+        api.action("ctp_order", "partial_update", params={
+            "OrderRef": pInputOrder.OrderRef.decode("gbk"),
+            "Finished": True,
+            "StatusMsg": pRspInfo.ErrorMsg.decode("gbk"),
+            "CancelTime": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
+        })
+
     def send_order(self, instrument, price, volume, direction, offset, order_id):
         orderref = str(self.inc_orderref_id())
         order = ApiStruct.InputOrder(
@@ -255,10 +267,9 @@ class TraderBot(Trader):
         req.UserID = self.investor_id
         self.ReqOrderAction(req, self.inc_request_id())
 
-    def query_position(self, instrument):
+    def query_position(self):
         req = ApiStruct.QryInvestorPosition(BrokerID=self.broker_id,
-                                            InvestorID=self.investor_id,
-                                            InstrumentID=instrument)
+                                            InvestorID=self.investor_id)
         self.ReqQryInvestorPosition(req, self.inc_request_id())
 
 
@@ -268,14 +279,20 @@ class TaskManager:
         self.loop = loop
 
     async def run(self):
+        # 第一次先启动所有“已运行”的任务，然后只轮询“未启动”的任务
+        status_flag = OrderStatus.RUNNING
+
         while True:
-            resp = api.action("order", "list", params={"Status": 0})
+            resp = api.action("order", "list", params={"Status": status_flag, "Account": self.trader.account_name})
             for order in resp:
                 self.submit(order['ID'])
-            asyncio.sleep(1, loop=self.loop)
+            await asyncio.sleep(1, loop=self.loop)
+            status_flag = OrderStatus.INACTIVE
 
     def submit(self, order_id):
+        # 把任务状态设置为“已运行”
         api.action("order", "partial_update", params={"ID": order_id, "Status": 1})
+        # 正式开始发单
         asyncio.ensure_future(self.trade(order_id), loop=self.loop)
 
     def get_task(self, order_id):
@@ -289,7 +306,7 @@ class TaskManager:
 
     async def trade(self, order_id):
         task = self.get_task(order_id)
-        if task['Finished']:
+        if task['Status'] == OrderStatus.FINISHED:
             return
         volumes_left = task['VolumesTotal'] - task['VolumesTraded']
         trade_volume = self.decide_volume(volumes_left, task['split_options'])
@@ -302,8 +319,12 @@ class TaskManager:
                                           order_id)
         await asyncio.sleep(task['split_options']['sleep_after_submit'], loop=self.loop)
         ctp_order = TradingAPI.get_ctp_order(orderref)
-        if not ctp_order.Finished:
+        if not ctp_order['Finished']:
             self.trader.cancel_order(task['InstrumentID'], orderref, self.trader.front_id, self.trader.session_id)
+        if ctp_order.get('CancelTime'):
+            # 如果CTP发单出错，那么直接取消整个订单
+            api.action("order", "partial_update", params={"ID": order_id, "Status": OrderStatus.FINISHED})
+            return
         await asyncio.sleep(task['split_options']['sleep_after_cancel'], loop=self.loop)
         await self.trade(order_id)
 
@@ -356,7 +377,7 @@ class TraderInterface:
         self.task_manager = TaskManager(self.trader)
 
     def query_position(self, instrument):
-        empty_position = "{'TotalLPosition': 0, 'YdLPosition': 0, 'TodayLPosition': 0, 'NetAmount': 0}"
+        empty_position = '{"TotalLPosition": 0, "YdLPosition": 0, "TodayLPosition": 0, "NetAmount": 0}'
         return ujson.loads(redis.hget("Position", instrument) or empty_position)
 
     def query_price(self, instrument):
@@ -390,14 +411,19 @@ class TraderInterface:
         asyncio.sleep(0.01, loop=self.loop)
         return {'order_id': order_id}
 
-    @status_monitor("TradeBot", loop=zmq.asyncio.ZMQEventLoop())
+    @status_monitor("TradeBot")
     async def run(self, loop):
-        self.loop = loop
+        self.task_manager.loop = self.loop = loop
         URL = "ipc:///tmp/tradebot.sock"
         ctx = zmq.asyncio.Context()
         sock = ctx.socket(zmq.REP)
         sock.bind(URL)
-        asyncio.ensure_future(self.manage_tasks(loop), loop=loop)
+        while not self.trader.login_status:
+            # 等待直到CTP登录全部完成
+            await asyncio.sleep(1)
+        print("CTP Login Completed")
+        asyncio.ensure_future(self.task_manager.run(), loop=loop)
+        loop.call_soon(self._query_ctp_position)
         while 1:
             data = await sock.recv_json()
             fn_name = data['fn']
@@ -408,6 +434,11 @@ class TraderInterface:
             fn = getattr(self, fn_name)
             result = fn(**kwargs)
             await sock.send_json(result)
+
+    def _query_ctp_position(self):
+        """每20秒向CTP请求一次仓位"""
+        self.trader.query_position()
+        self.loop.call_later(20, self._query_ctp_position)
 
 
 if __name__ == "__main__":

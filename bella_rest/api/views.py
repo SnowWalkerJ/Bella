@@ -50,6 +50,15 @@ class OrderViewSet(ModelViewSet):
     queryset = Order.objects.all()
     serializer_class = OrderSerializer
 
+    def get_queryset(self):
+        qs = self.queryset
+        qp = self.request.query_params
+        if "Status" in qp:
+            qs = qs.filter(Status=qp['Status'])
+        if "Account" in qp:
+            qs = qs.filter(Account=qp["Account"])
+        return qs
+
     def create(self, request):
         account = get_object_or_404(CTPAccount.objects.all(), pk=request.data["Account"])
         serializer = self.serializer_class()

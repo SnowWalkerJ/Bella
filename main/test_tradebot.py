@@ -10,9 +10,15 @@ from bella.service import status_monitor
 async def run(loop):
     URL = "ipc:///tmp/tradebot.sock"
     ctx = zmq.asyncio.Context()
-    sock = ctx.socket(zmq.REP)
+    sock = ctx.socket(zmq.REQ)
     sock.connect(URL)
     await sock.send_json({
         "fn": "query_position",
         "kwargs": {"instrument": "c1905"},
     })
+    msg = await sock.recv_json()
+    print(msg)
+
+
+if __name__ == "__main__":
+    run()
