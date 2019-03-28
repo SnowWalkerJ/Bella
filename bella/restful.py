@@ -26,7 +26,7 @@ def patch_coreapi():
     """
     from collections import defaultdict
     import coreapi.transports.http
-    from coreapi.transports.http import Params
+    from coreapi.transports.http import Params, empty_params
     from coreapi.utils import guess_filename, is_file
     from coreapi import exceptions, utils
 

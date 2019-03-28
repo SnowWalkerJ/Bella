@@ -72,11 +72,12 @@ class Market(MdApi):
             # subscribe market data
             self.subscribe()
         else:
-            Logger.error("Loggerin failure:[%s] msg:[%s]" % (pRspInfo.ErrorID, pRspInfo.ErrorMsg))
+            Logger.error("Login failure:[%s] msg:[%s]" % (pRspInfo.ErrorID, pRspInfo.ErrorMsg.decode("gbk")))
 
     def OnRspSubMarketData(self, pSpecificInstrument, pRspInfo, nRequestID, bIsLast):
         # Logger.info('OnRspSubMarketData:[%s]', pRspInfo.ErrorID)
-        print(pSpecificInstrument, pRspInfo)
+        # print(pSpecificInstrument, pRspInfo)
+        pass
 
     ############## 错误
 

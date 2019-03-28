@@ -16,4 +16,4 @@ class Order(models.Model):
     SplitPercent = models.FloatField()
     CancelTime = models.DateTimeField(null=True)
     CompleteTime = models.DateTimeField(null=True)
-    Finished = models.BooleanField(default=False)
+    Status = models.IntegerField(default=0)  # 0: inactive 1: running 2: finished

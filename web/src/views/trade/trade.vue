@@ -49,7 +49,15 @@
 </template>
 <script>
 import Util from '../../libs/util';
-import strftime from 'strftime';
+
+function padZero(num, digits) {
+    num = num + '';
+    while (num.length < digits) {
+        num = '0' + num;
+    }
+    return num;
+}
+
 export default {
     data () {
         return {
@@ -86,11 +94,37 @@ export default {
                     key: 'Status',
                     title: '状态',
                     sortable: true,
+                    filters: [
+                        {
+                            label: '只显示未完成订单',
+                            value: 1
+                        }
+                    ],
+                    filterMultiple: false,
+                    filterMethod (value, row) {
+                        console.log(value);
+                        if (value == 1) {
+                            console.log(row);
+                            return !row.Finished;
+                        }
+                    }
                 },
                 {
                     key: 'InsertTime',
                     title: '发单时间',
                     sortable: true,
+                    filters: [
+                        {
+                            label: '只显示当日订单',
+                            value: 1
+                        }
+                    ],
+                    filterMultiple: false,
+                    filterMethod: (value, row) => {
+                        if (value === 1) {
+                            return this.today <= row.InsertTime;
+                        }
+                    }
                 },
                 {
                     key: 'Operation',
@@ -116,7 +150,19 @@ export default {
                     Price: '对手价',
                     InsertTime: '2019-03-21T14:23:40',
                     Status: '已完成',
-                    Volume: '5/5'
+                    Volume: '5/5',
+                    Finished: true,
+                },
+                {
+                    ID: 2,
+                    InstrumentID: 'c1905',
+                    Direction: '卖出',
+                    Offset: '开仓',
+                    Price: '对手价',
+                    InsertTime: '2019-03-25T14:23:40',
+                    Status: '未完成',
+                    Volume: '2/5',
+                    Finished: false,
                 }
             ],
             positionColumns: [
@@ -168,6 +214,14 @@ export default {
             splitValue: 0.6
         };
     },
+    computed: {
+        today () {
+            const date = new Date();
+            let year = date.getFullYear(), month = padZero(date.getMonth() + 1, 2), day = padZero(date.getDate(), 2);
+            const today = year + "-" + month + "-" + day;
+            return today;
+        }
+    },
     methods: {
         manualTrade () {
             this.showTradeModal = true;
@@ -182,13 +236,10 @@ export default {
                 params: {}
             }).then(resp => {
                 const data = resp.data;
-                const date = new Data();
-                let year = date.getFullYear(), month = date.getMonth(), day = date.getDate();
-                const today = year + "-" + month + "-" + day;
                 this.orderData.clear();
                 for (let i = 0; i < data.Length; i++) {
                     const record = data[i];
-                    if ((!this.showCompleted && record.Finished) || (!this.showHistory && today > record.InsertTime)) {
+                    if ((!this.showCompleted && record.Finished) || (!this.showHistory && this.today > record.InsertTime)) {
                         continue;
                     }
                     let myRecord = {
@@ -200,6 +251,7 @@ export default {
                         Volume: record.VolumesTraded + '/' + record.VolumesTotal,
                         Status: record.Finished ? '已完成' : '未完成',
                         InsertTime: record.InsertTime,
+                        Finished: record.Finished,
                     };
                     this.orderData.push(myRecord);
                 }
@@ -215,8 +267,8 @@ export default {
             });
         },
         interval_handler () {
-            this.refreshOrders();
-            this.refreshPosition();
+            // this.refreshOrders();
+            // this.refreshPosition();
         }
     },
     created () {

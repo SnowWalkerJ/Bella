@@ -14,9 +14,9 @@ from bella.service import status_monitor
 
 
 class MarketServer(Market):
-    def __init__(self):
+    def __init__(self, account):
         self.api = API()
-        self.account = self.get_ctp_account()
+        self.account = self.get_ctp_account(account)
         super(MarketServer, self).__init__(
             self.account['UserID'].encode(),
             self.account['Password'].encode(),
@@ -38,8 +38,8 @@ class MarketServer(Market):
             self.Release()
             self.ioloop.stop()
 
-    def get_ctp_account(self):
-        return self.api.action("ctp", "read", params={"Name": "simnow"})
+    def get_ctp_account(self, account):
+        return self.api.action("ctp", "read", params={"Name": account})
 
     @handle_exceptions(ignore=True)
     def handler_data(self, data):
@@ -79,4 +79,4 @@ class MarketServer(Market):
 
 
 if __name__ == '__main__':
-    MarketServer().run()
+    MarketServer("simnow").run()

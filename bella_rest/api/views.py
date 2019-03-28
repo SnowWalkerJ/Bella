@@ -1,6 +1,7 @@
 from datetime import datetime
 from dateutil.parser import parse
 
+import ujson
 from django.shortcuts import get_object_or_404
 from rest_framework.viewsets import ReadOnlyModelViewSet, ModelViewSet
 from rest_framework.views import APIView
@@ -8,8 +9,8 @@ from rest_framework.schemas import AutoSchema
 from rest_framework.response import Response
 from arctic.date import DateRange
 import coreapi
+from bella.db import redis
 
-# from bella.db._arctic import arctic
 from .models.ctp_account import CTPAccount
 from .models.service import Service
 from .models.task import Task
@@ -64,6 +65,7 @@ class OrderViewSet(ModelViewSet):
             "SplitSleepAfterSubmit": float(request.data["SplitSleepAfterSubmit"]),
             "SplitSleepAfterCancel": float(request.data["SplitSleepAfterCancel"]),
             "SplitPercent": float(request.data["SplitPercent"]),
+            "Status": 0,
         }
         order = serializer.create(data)
         order.save()
@@ -82,7 +84,7 @@ class CTPOrderViewSet(ModelViewSet):
         volumes_traded = sum((o.VolumesTraded for o in related_ctp_orders), 0)
         order.VolumesTraded = volumes_traded
         if order.VolumesTraded == order.VolumesTotal and not order.Finished:
-            order.Finished = True
+            order.Status = 2
             order.CompleteTime = datetime.now()
         order.save()
         return result
@@ -147,3 +149,12 @@ class QueryOrderFromCTPOrder(APIView):
         queryset = CTPOrder.objects.all()
         ctp_order = get_object_or_404(queryset, pk=pk)
         return Response({"OrderID": ctp_order.OrderID.ID})
+
+
+class Position(APIView):
+    def get(self, request):
+        data = {}
+        keys = redis.hkeys("Position")
+        for key in keys:
+            data[key] = ujson.loads(redis.hget("Position", key))
+        return Response(data)

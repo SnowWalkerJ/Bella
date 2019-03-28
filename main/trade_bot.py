@@ -267,7 +267,15 @@ class TaskManager:
         self.trader = trader
         self.loop = loop
 
+    async def run(self):
+        while True:
+            resp = api.action("order", "list", params={"Status": 0})
+            for order in resp:
+                self.submit(order['ID'])
+            asyncio.sleep(1, loop=self.loop)
+
     def submit(self, order_id):
+        api.action("order", "partial_update", params={"ID": order_id, "Status": 1})
         asyncio.ensure_future(self.trade(order_id), loop=self.loop)
 
     def get_task(self, order_id):
@@ -378,7 +386,7 @@ class TraderInterface:
                 "split_percent": 1,
             }
         order_id = TradingAPI.insert_order(self.account_name, instrument, price, volume, direction, offset, split_options)
-        self.task_manager.submit(order_id)
+        # self.task_manager.submit(order_id)
         asyncio.sleep(0.01, loop=self.loop)
         return {'order_id': order_id}
 
@@ -388,7 +396,7 @@ class TraderInterface:
         URL = "ipc:///tmp/tradebot.sock"
         ctx = zmq.asyncio.Context()
         sock = ctx.socket(zmq.REP)
-        sock.connect(URL)
+        sock.bind(URL)
         asyncio.ensure_future(self.manage_tasks(loop), loop=loop)
         while 1:
             data = await sock.recv_json()
