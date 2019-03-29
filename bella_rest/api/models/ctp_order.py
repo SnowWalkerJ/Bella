@@ -21,8 +21,8 @@ class CTPOrder(models.Model):
     VolumesTraded = models.IntegerField()
     InsertTime = models.DateTimeField()
     UpdateTime = models.DateTimeField(null=True)
-    CancelTime = models.DateTimeField(null=True)
-    CompleteTime = models.DateTimeField(null=True)
+    CancelTime = models.DateTimeField(null=True, blank=True)
+    CompleteTime = models.DateTimeField(null=True, blank=True)
     StatusMsg = models.CharField(blank=True, null=True, max_length=80)
     Finished = models.BooleanField(default=False)
 

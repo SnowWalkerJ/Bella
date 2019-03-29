@@ -120,7 +120,7 @@ class TradingAPI:
 
     @staticmethod
     def query_order(orderref):
-        rsp = api.action("query_order_from_ctporder", "read", params={"id": orderref})
+        rsp = api.action("query_order_from_ctporder", "read", params={"id": int(orderref)})
         if rsp:
             return rsp['OrderID']
         else:
@@ -308,14 +308,41 @@ class TaskManager:
         task = self.get_task(order_id)
         if task['Status'] == OrderStatus.FINISHED:
             return
-        volumes_left = task['VolumesTotal'] - task['VolumesTraded']
+        if task['Offset'] == ApiStruct.OF_Close:
+            # 处理平仓，优先平昨
+            if task['Direction'] == ApiStruct.D_Buy:
+                cs = 'S'
+            else:
+                cs = 'L'
+            position = TraderInterface.query_position(task['InstrumentID'])
+            # 优先使用昨仓
+            volumes_holding = position.get(f'Yd{cs}Position', 0)
+            offset = ApiStruct.OF_CloseYesterday
+            if not volumes_holding:
+                # 如果没有昨仓，使用今仓
+                volumes_holding = position.get(f'Today{cs}Position', 0)
+                offset = ApiStruct.OF_CloseToday
+            if not volumes_holding:
+                # 如果已经没有仓位了，取消整个订单
+                api.action("order", "partial_update", params={
+                    "ID": order_id,
+                    "Status": OrderStatus.FINISHED,
+                    "StatusMsg": "平仓数量不够",
+                    "CancelTime": datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+                })
+                return
+        else:
+            # 如果开仓，不限数量
+            volumes_holding = 99999999999
+            offset = task['Offset']
+        volumes_left = min(task['VolumesTotal'] - task['VolumesTraded'], volumes_holding)
         trade_volume = self.decide_volume(volumes_left, task['split_options'])
         price = self.decide_price(task['InstrumentID'], task['Direction'], task['Price'])
         orderref = self.trader.send_order(task['InstrumentID'],
                                           price,
                                           trade_volume,
                                           task['Direction'],
-                                          task['Offset'],
+                                          offset,
                                           order_id)
         await asyncio.sleep(task['split_options']['sleep_after_submit'], loop=self.loop)
         ctp_order = TradingAPI.get_ctp_order(orderref)
@@ -323,7 +350,12 @@ class TaskManager:
             self.trader.cancel_order(task['InstrumentID'], orderref, self.trader.front_id, self.trader.session_id)
         if ctp_order.get('CancelTime'):
             # 如果CTP发单出错，那么直接取消整个订单
-            api.action("order", "partial_update", params={"ID": order_id, "Status": OrderStatus.FINISHED})
+            api.action("order", "partial_update", params={
+                "ID": order_id,
+                "Status": OrderStatus.FINISHED,
+                "StatusMsg": ctp_order['StatusMsg'],
+                "CancelTime": datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+            })
             return
         await asyncio.sleep(task['split_options']['sleep_after_cancel'], loop=self.loop)
         await self.trade(order_id)
@@ -331,7 +363,7 @@ class TaskManager:
     @staticmethod
     def decide_volume(total_volume, split_options):
         percent = split_options['split_percent']
-        volume = min(max(round(percent * total_volume), 1), total_volume)
+        volume = max(min(max(round(percent * total_volume), 1), total_volume), 0)
         return volume
 
     @staticmethod
@@ -376,7 +408,8 @@ class TraderInterface:
         self.trader.login()
         self.task_manager = TaskManager(self.trader)
 
-    def query_position(self, instrument):
+    @staticmethod
+    def query_position(instrument):
         empty_position = '{"TotalLPosition": 0, "YdLPosition": 0, "TodayLPosition": 0, "NetAmount": 0}'
         return ujson.loads(redis.hget("Position", instrument) or empty_position)
 
@@ -442,4 +475,4 @@ class TraderInterface:
 
 
 if __name__ == "__main__":
-    TraderInterface('simnow_dev').run()
+    TraderInterface('simnow').run()

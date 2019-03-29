@@ -74,6 +74,7 @@ class OrderViewSet(ModelViewSet):
             "SplitSleepAfterSubmit": float(request.data["SplitSleepAfterSubmit"]),
             "SplitSleepAfterCancel": float(request.data["SplitSleepAfterCancel"]),
             "SplitPercent": float(request.data["SplitPercent"]),
+            "StatusMsg": "",
             "Status": 0,
         }
         order = serializer.create(data)
@@ -92,7 +93,7 @@ class CTPOrderViewSet(ModelViewSet):
         related_ctp_orders = CTPOrder.objects.filter(OrderID=order)
         volumes_traded = sum((o.VolumesTraded for o in related_ctp_orders), 0)
         order.VolumesTraded = volumes_traded
-        if order.VolumesTraded == order.VolumesTotal and not order.Finished:
+        if order.VolumesTraded == order.VolumesTotal and order.Status != 2:
             order.Status = 2
             order.CompleteTime = datetime.now()
         order.save()

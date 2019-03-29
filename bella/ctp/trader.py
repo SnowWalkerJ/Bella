@@ -217,11 +217,11 @@ class Trader(TraderApi):
 
     def OnErrRtnOrderAction(self, pOrderAction, pRspInfo):
         """报单撤单操作错误回报"""
-        Logger.error('OnErrRtnOrderAction', struct_to_dict(pOrderAction), pRspInfo)
+        Logger.error('OnErrRtnOrderAction', struct_to_dict(pOrderAction), struct_to_dict(pRspInfo))
 
     def OnErrRtnOrderInsert(self, pInputOrder, pRspInfo):
         """报单录入错误回报(交易所回报)"""
-        Logger.error("OnErrRtnOrderInsert", struct_to_dict(pInputOrder), pRspInfo)
+        Logger.error("OnErrRtnOrderInsert", struct_to_dict(pInputOrder), struct_to_dict(pRspInfo))
 
     def inc_request_id(self):
         self.request_id += 1
