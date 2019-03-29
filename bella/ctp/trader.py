@@ -150,7 +150,8 @@ class Trader(TraderApi):
             # 先确认投资者结算,确认后才可交易
             self.confirmSettlement()
 
-    def OnRspError(self, pRspInfo, nRequestID, bIsLast):        
+    def OnRspError(self, pRspInfo, nRequestID, bIsLast):      
+        Logger.error("OnRspError", struct_to_dict(pRspInfo))  
         self.rsp_queue.put((
             "OnRspError",
             {
@@ -162,11 +163,11 @@ class Trader(TraderApi):
 
     def OnRspOrderAction(self, pInputOrderAction, pRspInfo, nRequestID, bIsLast):
         """报单操作请求响应"""
-        Logger.error("OnRspOrderAction", pInputOrderAction, pRspInfo, nRequestID, bIsLast)
+        Logger.error("OnRspOrderAction", pInputOrderAction, struct_to_dict(pRspInfo), nRequestID, bIsLast)
 
     def OnRspQryTradingAccount(self, pTradingAccount, pRspInfo, nRequestID, bIsLast):
         """请求查询资金账户响应"""
-        Logger.info("OnRspQryTradingAccount", pTradingAccount, pRspInfo, nRequestID, bIsLast)
+        Logger.info("OnRspQryTradingAccount", pTradingAccount, struct_to_dict(pRspInfo), nRequestID, bIsLast)
 
     def OnRspQryInstrument(self, pInstrument, pRspInfo, nRequestID, bIsLast):
         """请求查询合约响应"""
@@ -181,13 +182,13 @@ class Trader(TraderApi):
 
     def OnRspQryInvestor(self, pInvestor, pRspInfo, nRequestID, bIsLast):
         """请求查询投资者响应"""
-        Logger.info("OnRspQryInvestor", pInvestor, pRspInfo, nRequestID, bIsLast)
+        Logger.info("OnRspQryInvestor", pInvestor, struct_to_dict(pRspInfo), nRequestID, bIsLast)
 
     def OnRspQryInvestorPositionDetail(self, pInvestorPositionDetail, pRspInfo, nRequestID, bIsLast):
         """请求查询投资者仓位明细响应"""
         data = struct_to_dict(pInvestorPositionDetail)
         data = json.dumps(data).decode('unicode_escape')
-        Logger.info("OnRspQryInvestorPositionDetail", data, pRspInfo, bIsLast)
+        Logger.info("OnRspQryInvestorPositionDetail", data, struct_to_dict(pRspInfo), bIsLast)
 
     def OnRspQrySettlementInfo(self, pSettlementInfo, pRspInfo, nRequestID, bIsLast):
         """请求查询投资者结算结果响应"""
