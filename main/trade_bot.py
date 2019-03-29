@@ -130,7 +130,7 @@ class TradingAPI:
 class TraderBot(Trader):
     def __init__(self, account_name):
         self.account_name = account_name
-        account_info = api.action("ctp", "read", params={"Name": "simnow_dev"})
+        account_info = api.action("ctp", "read", params={"Name": account_name})
         super().__init__(account_info['TdHost'].encode(),
                          account_info['UserID'].encode(),
                          account_info['BrokerID'].encode(),
