@@ -8,10 +8,14 @@ import pickle
 from queue import Queue
 import tempfile
 import time
-from quant.utils import Logger
+import logging
+
 from ._ctp import TraderApi, ApiStruct
 from .utils import struct_to_dict
 from ..restful import api
+
+
+logger = logging.getLogger("trader")
 
 
 CTP_NOT_INITED = 7
@@ -57,13 +61,13 @@ class Trader(TraderApi):
     def getInstrument(self):
         """查询合约"""
         req = ApiStruct.QryInstrument()
-        Logger.info('获取有效合约')
+        logger.info('获取有效合约')
         result = self.ReqQryInstrument(req, self.inc_request_id())
-        Logger.info(f'getInstrument, result:[{result}]')
+        logger.info(f'getInstrument, result:[{result}]')
 
     def getInvestor(self):
         """查询投资者"""
-        Logger.info("查询投资者")
+        logger.info("查询投资者")
         req = ApiStruct.QryInvestor(BrokerID=self.broker_id, InvestorID=self.investor_id)   
         self.ReqQryInvestor(req, self.inc_request_id())
 
@@ -71,7 +75,7 @@ class Trader(TraderApi):
         """查询持仓"""
         req = ApiStruct.QryInvestorPosition(BrokerID=self.broker_id, InvestorID=self.investor_id)                  
         result = self.ReqQryInvestorPosition(req, self.inc_request_id())
-        Logger.info(f'GetPosition ,result:[{result}]')
+        logger.info(f'GetPosition ,result:[{result}]')
 
     def getSettlement(self, trading_day=''):
         self.settlement_info = ''
@@ -79,16 +83,16 @@ class Trader(TraderApi):
 
         req = ApiStruct.QrySettlementInfo(BrokerID=self.broker_id, InvestorID=self.investor_id, TradingDay=trading_day)        
         result = self.ReqQrySettlementInfo(req, self.inc_request_id())
-        Logger.info(f'获取结算单信息 {trading_day}, getSettlement {result}')
+        logger.info(f'获取结算单信息 {trading_day}, getSettlement {result}')
 
     def confirmSettlement(self):
         """
         确认结算信息
         """
-        Logger.info("确认结算信息")
+        logger.info("确认结算信息")
         req = ApiStruct.SettlementInfoConfirm(BrokerID=self.broker_id, InvestorID=self.investor_id)
         result = self.ReqSettlementInfoConfirm(req, self.inc_request_id())
-        Logger.debug(f"confirmSettlement [{result}]")
+        logger.debug(f"confirmSettlement [{result}]")
 
     ############# 前台连接
 
@@ -98,61 +102,61 @@ class Trader(TraderApi):
         """
         req = ApiStruct.ReqUserLogin(BrokerID=self.broker_id, UserID=self.investor_id, Password=self.password)
         r = self.ReqUserLogin(req, self.inc_request_id())
-        Logger.info(f'OnFrontConnected status:[{r}]')
+        logger.info(f'OnFrontConnected status:[{r}]')
 
     def OnFrontDisconnected(self, nReason):
         self.connected = False
         self.need_relogin = False
         self.login_status = False
         self.instruments.clear()  # 清除合约
-        Logger.warn(f'OnFrontDisconnected:[{nReason}]')
+        logger.warn(f'OnFrontDisconnected:[{nReason}]')
 
     ############## 通知
 
     def OnRtnTrade(self, pTrade):
         """成交通知"""
-        Logger.info("OnRtnTrade", struct_to_dict(pTrade))
+        logger.info(f"OnRtnTrade {struct_to_dict(pTrade)}")
 
     def OnRtnOrder(self, pOrder):
         """
         报单通知（通过参数检测->已经提交成功）
         """
         # self.orderref_mapper[pOrder.OrderRef] = pOrder.CombOffsetFlag  # 记录开仓 平昨 平今标记        
-        Logger.info("OnRtnOrder", struct_to_dict(pOrder))
+        logger.info(f"OnRtnOrder {struct_to_dict(pOrder)}")
 
     def OnRtnInstrumentStatus(self, pInstrumentStatus):
         """合约交易状态通知"""
-        # Logger.info("OnRtnInstrumentStatus", struct_to_dict(pInstrumentStatus))
+        # logger.info("OnRtnInstrumentStatus", struct_to_dict(pInstrumentStatus))
         pass
 
     def OnRtnTradingNotice(self, pTradingNoticeInfo):
         """交易通知"""
-        Logger.info("OnRtnTradingNotice")
+        logger.info("OnRtnTradingNotice")
 
     ############## 回报
 
     def OnRspUserLogin(self, pRspUserLogin, pRspInfo, nRequestID, bIsLast):
         # 没有初始化,前置不活跃
         if pRspInfo.ErrorID in(CTP_NOT_INITED, CTP_FRONT_NOT_ACTIVE):
-            Logger.warn(f'需要释放原始连接,重新初始化连接! ErrorID: {pRspInfo.ErrorID} ')
+            logger.warn(f'需要释放原始连接,重新初始化连接! ErrorID: {pRspInfo.ErrorID} ')
             time.sleep(300)  # 避免过多重复无效连接
             self.need_relogin = True
         elif pRspInfo.ErrorID != 0:
             error_msg = pRspInfo.ErrorMsg.decode('gbk')
-            Logger.error(f'OnRspUserLogin:[ErrorID={pRspInfo.ErrorID},ErrMsg={error_msg}]')
+            logger.error(f'OnRspUserLogin:[ErrorID={pRspInfo.ErrorID},ErrMsg={error_msg}]')
         else:
             self.front_id = pRspUserLogin.FrontID
             self.session_id = pRspUserLogin.SessionID
             self.trading_day = self.GetTradingDay()
 
-            Logger.info(f'{datetime.datetime.now()} {pRspUserLogin}')
-            Logger.info(f'GetTradingDay:[{self.trading_day}] GetApiVersion:[{self.GetApiVersion()}]')
+            logger.info(f'{datetime.datetime.now()} {pRspUserLogin}')
+            logger.info(f'GetTradingDay:[{self.trading_day}] GetApiVersion:[{self.GetApiVersion()}]')
 
             # 先确认投资者结算,确认后才可交易
             self.getSettlement()
 
     def OnRspError(self, pRspInfo, nRequestID, bIsLast):      
-        Logger.error("OnRspError", struct_to_dict(pRspInfo))  
+        logger.error(f"OnRspError {struct_to_dict(pRspInfo)}")
         self.rsp_queue.put((
             "OnRspError",
             {
@@ -164,18 +168,18 @@ class Trader(TraderApi):
 
     def OnRspOrderAction(self, pInputOrderAction, pRspInfo, nRequestID, bIsLast):
         """报单操作请求响应"""
-        Logger.error("OnRspOrderAction", pInputOrderAction, struct_to_dict(pRspInfo), nRequestID, bIsLast)
+        logger.error(f"OnRspOrderAction {pInputOrderAction} {struct_to_dict(pRspInfo)} {nRequestID} {bIsLast}")
 
     def OnRspQryTradingAccount(self, pTradingAccount, pRspInfo, nRequestID, bIsLast):
         """请求查询资金账户响应"""
-        Logger.info("OnRspQryTradingAccount", pTradingAccount, struct_to_dict(pRspInfo), nRequestID, bIsLast)
+        logger.info(f"OnRspQryTradingAccount {pTradingAccount}, {struct_to_dict(pRspInfo)}, {nRequestID}, {bIsLast}")
 
     def OnRspQryInstrument(self, pInstrument, pRspInfo, nRequestID, bIsLast):
         """请求查询合约响应"""
         data = struct_to_dict(pInstrument)
         self.instruments[pInstrument.InstrumentID.decode()] = data
         if bIsLast:
-            Logger.info(f"获取有效合约完成！总共 {len(self.instruments)} 个合约")
+            logger.info(f"获取有效合约完成！总共 {len(self.instruments)} 个合约")
             self.connected = True
             self.need_relogin = False
             api.action("instruments", "update", params={"data": self.instruments})
@@ -183,18 +187,18 @@ class Trader(TraderApi):
 
     def OnRspQryInvestor(self, pInvestor, pRspInfo, nRequestID, bIsLast):
         """请求查询投资者响应"""
-        Logger.info("OnRspQryInvestor", pInvestor, struct_to_dict(pRspInfo), nRequestID, bIsLast)
+        logger.info(f"OnRspQryInvestor {pInvestor}, {struct_to_dict(pRspInfo)}, {nRequestID}, {bIsLast}")
 
     def OnRspQryInvestorPositionDetail(self, pInvestorPositionDetail, pRspInfo, nRequestID, bIsLast):
         """请求查询投资者仓位明细响应"""
         data = struct_to_dict(pInvestorPositionDetail)
         data = json.dumps(data).decode('unicode_escape')
-        Logger.info("OnRspQryInvestorPositionDetail", data, struct_to_dict(pRspInfo), bIsLast)
+        logger.info(f"OnRspQryInvestorPositionDetail {data}, {struct_to_dict(pRspInfo)}, {bIsLast}")
 
     def OnRspQrySettlementInfo(self, pSettlementInfo, pRspInfo, nRequestID, bIsLast):
         """请求查询投资者结算结果响应"""
         if not pSettlementInfo:
-            Logger.info("无结算结果")
+            logger.info("无结算结果")
             return
 
         data = struct_to_dict(pSettlementInfo)
@@ -202,16 +206,16 @@ class Trader(TraderApi):
         self.settlement_info += data.get('Content')
         data = json.dumps(data)
         if bIsLast:
-            filename = "_".join(["settlement", time.strftime('%Y%m%d%H%M%S', time.localtime())])
+            filename = f"settlements/{pSettlementInfo.TradingDay.decode()}-{pSettlementInfo.InvestorID.decode()}.txt"
             with open(filename, "w") as f:
                 f.write(self.settlement_info)
-            Logger.info('结算单信息已生成 ')
+            logger.info('结算单信息已生成 ')
             # 确认结算信息
             self.confirmSettlement()
 
     def OnRspSettlementInfoConfirm(self, pSettlementInfoConfirm, pRspInfo, nRequestID, bIsLast):
         """投资者结算结果确认响应"""
-        Logger.info(f'确认结算信息完成![{pSettlementInfoConfirm}]')
+        logger.info(f'确认结算信息完成![{pSettlementInfoConfirm}]')
         time.sleep(2)  # 防止查询未就绪
         # 请求合约
         self.login_status = True
@@ -221,11 +225,11 @@ class Trader(TraderApi):
 
     def OnErrRtnOrderAction(self, pOrderAction, pRspInfo):
         """报单撤单操作错误回报"""
-        Logger.error('OnErrRtnOrderAction', struct_to_dict(pOrderAction), struct_to_dict(pRspInfo))
+        logger.error(f'OnErrRtnOrderAction {struct_to_dict(pOrderAction)} {struct_to_dict(pRspInfo)}")
 
     def OnErrRtnOrderInsert(self, pInputOrder, pRspInfo):
         """报单录入错误回报(交易所回报)"""
-        Logger.error("OnErrRtnOrderInsert", struct_to_dict(pInputOrder), struct_to_dict(pRspInfo))
+        logger.error(f"OnErrRtnOrderInsert {struct_to_dict(pInputOrder)} {struct_to_dict(pRspInfo)}")
 
     def inc_request_id(self):
         self.request_id += 1

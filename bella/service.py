@@ -6,10 +6,14 @@ from functools import wraps
 from inspect import iscoroutinefunction
 import os
 import subprocess as sp
-from quant.utils import Logger
+import logging
+
 from .db import redis
 from .exception_handler import handle_exceptions
 from .restful import api
+
+
+logger = logging.getLogger("service")
 
 
 def status_monitor(name, loop=None):
@@ -69,7 +73,7 @@ class ServiceManager:
 
     @handle_exceptions()
     def shutdown(self, name):
-        Logger.info(f"正在结束服务: {name}")
+        logger.info(f"正在结束服务: {name}")
         service = api.action("services", "read", {"Name": name})
         service.update(Status=False)
         api.action("services", "update", service)
@@ -80,7 +84,7 @@ class ServiceManager:
 
     @handle_exceptions()
     def start(self, name):
-        Logger.info(f"正在启动服务: {name}")
+        logger.info(f"正在启动服务: {name}")
         service = api.action("services", "read", {"Name": name})
         service.update(Status=True)
         api.action("services", "update", service)
@@ -91,7 +95,7 @@ class ServiceManager:
     def remove(self, name):
         if self.is_alive(name):
             self.shutdown(name)
-        Logger.info(f"正在删除服务: {name}")
+        logger.info(f"正在删除服务: {name}")
         api.action("services", "delete", {"Name": name})
 
     @handle_exceptions()

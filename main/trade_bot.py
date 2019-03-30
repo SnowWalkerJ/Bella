@@ -3,6 +3,7 @@
 """
 import asyncio
 from datetime import datetime
+import logging
 
 import ujson
 import zmq
@@ -16,7 +17,8 @@ from bella.config import CONFIG
 from bella.db._redis import redis, create_aredis
 from bella.service import status_monitor
 
-# TODO: logger
+
+logger = logging.getLogger("trade_bot")
 
 
 class OrderStatus:
@@ -287,7 +289,7 @@ class TaskManager:
         while True:
             resp = api.action("order", "list", params={"Status": status_flag, "Account": self.trader.account_name})
             for order in resp:
-                print("启动任务", order['ID'], order['InstrumentID'], order['Direction'], order['Volume'], '@', order['Price'])
+                logger.info(f"启动任务 {order['ID']} {order['InstrumentID']} {order['Direction']} {order['Volume']} @ {order['Price']}")
                 self.submit(order['ID'])
             await asyncio.sleep(1, loop=self.loop)
             status_flag = OrderStatus.INACTIVE
@@ -303,7 +305,7 @@ class TaskManager:
 
     async def trade(self, order_id, retries=20):
         if retries == 0:
-            print(order_id, "尝试达到最大次数，停止。")
+            logger.info(order_id, "尝试达到最大次数，停止。")
             api.action("order", "partial_update", params={
                 "ID": order_id,
                 "Status": OrderStatus.FINISHED,
@@ -462,7 +464,7 @@ class TraderInterface:
         while not self.trader.login_status:
             # 等待直到CTP登录全部完成
             await asyncio.sleep(1)
-        print("CTP Login Completed")
+        logger.info("CTP Login Completed")
         asyncio.ensure_future(self.task_manager.run(), loop=loop)
         loop.call_soon(self._query_ctp_position)
         while 1:

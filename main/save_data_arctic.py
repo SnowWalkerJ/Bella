@@ -1,5 +1,6 @@
 from datetime import timedelta
 import time
+import logging
 
 import ujson
 from arctic import TICK_STORE
@@ -7,7 +8,6 @@ from arctic.date import DateRange
 from arctic.exceptions import OverlappingDataException
 import numpy as np
 import pandas as pd
-from quant.utils import Logger
 from startpro.core.utils.loader import safe_init_run
 from startpro.core.process import Process
 
@@ -15,12 +15,15 @@ from bella.db import redis, arctic
 from bella.tables.bar_period import BarPeriod
 
 
+logger = logging.getLogger("save_data_arctic")
+
+
 class Main(Process):
     name = "data_arctic_saver"
 
     @safe_init_run
     def run(self, loop, **kwargs):
-        Logger.info("启动data_arctic_saver")
+        logger.info("启动data_arctic_saver")
         self.initialize_libraries()
         self.dump_ticks()
         self.dump_bars()
@@ -51,7 +54,7 @@ class Main(Process):
                 index = [i for i in range(data.shape[0]) if i not in duplicated_index]
                 data = data.iloc[index]
             assert not data.index.duplicated().any()
-            Logger.info(f"向arctic写入ticks[{instrument}]数据")
+            logger.info(f"向arctic写入ticks[{instrument}]数据")
             try:
                 arctic['ticks'].write(instrument, data)
             except OverlappingDataException:
@@ -61,7 +64,7 @@ class Main(Process):
                 old_data = old_data.truncate(None, data.index[0] - timedelta(milliseconds=500))
                 arctic['ticks'].write(instrument, old_data)
                 arctic['ticks'].write(instrument, data)
-            Logger.info(f"从redis中删除临时ticks[{instrument}]数据")
+            logger.info(f"从redis中删除临时ticks[{instrument}]数据")
             redis.delete(key)
 
     def dump_bars(self):
@@ -76,7 +79,7 @@ class Main(Process):
                 data.append(bar)
             data = pd.DataFrame(data).set_index("timestamp")
             data.index = pd.to_datetime(data.index).tz_localize("Asia/Shanghai")
-            Logger.info(f"向arctic写入bars.{freq}[{instrument}]")
+            logger.info(f"向arctic写入bars.{freq}[{instrument}]")
             try:
                 arctic[f'bars_{freq}'].write(instrument, data)
             except OverlappingDataException:
@@ -87,5 +90,5 @@ class Main(Process):
                 arctic[f'bars_{freq}'].write(instrument, old_data)
                 arctic[f'bars_{freq}'].write(instrument, data)
 
-            Logger.info(f"从redis中删除临时bars.{freq}[{instrument}]")
+            logger.info(f"从redis中删除临时bars.{freq}[{instrument}]")
             redis.delete(key)

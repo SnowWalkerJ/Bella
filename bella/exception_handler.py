@@ -1,9 +1,12 @@
 import sys
 import functools
-from quant.utils import Logger, rainbow as rb
+import logging
 
 
-def handle_exceptions(ignore=None):
+def handle_exceptions(logger=None, ignore=True):
+    if logger is None:
+        logger = logging.getLogger("exception_handler")
+
     def decorater(fn):
         @functools.wraps(fn)
         def wrapper(*args, **kwargs):
@@ -15,7 +18,7 @@ def handle_exceptions(ignore=None):
                 filename = trace.tb_frame.f_code.co_filename
                 lineno = trace.tb_lineno
                 funcname = fn.__name__
-                Logger.error(f"{filename}({funcname}) {exception} on line {lineno}")
+                logger.error(f"{filename}({funcname}) {exception} on line {lineno}")
                 if not ignore:
                     raise
         return wrapper

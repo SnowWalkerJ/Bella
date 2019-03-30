@@ -1,7 +1,8 @@
 from datetime import datetime, date
 import os
 import ujson
-from quant.utils import Logger
+import logging
+
 from bella.asyncloop import ThreadSafeAsyncLoop
 from bella.constants import CLIENT_DIR, SECOND_UNIT
 from bella.crypt import PrpCrypt
@@ -11,6 +12,9 @@ from bella.db import redis
 from bella.restful import API
 from bella.exception_handler import handle_exceptions
 from bella.service import status_monitor
+
+
+logger = logging.getLogger("market")
 
 
 class MarketServer(Market):
@@ -28,11 +32,11 @@ class MarketServer(Market):
         try:
             path = os.path.join(CLIENT_DIR, 'market')
             self.Create(path.encode())
-            Logger.debug("创建行情客户端 -", path)
+            logger.debug(f"创建行情客户端 - {path}")
             self.RegisterFront(self.account['MdHost'].encode())
-            Logger.debug("注册前台服务器", self.account['MdHost'])
+            logger.debug(f"注册前台服务器 {self.account['MdHost']}")
             self.Init()
-            Logger.debug("初始化")
+            logger.debug("初始化")
             self.ioloop.run_forever()
         except KeyboardInterrupt:
             self.Release()
@@ -66,7 +70,7 @@ class MarketServer(Market):
         try:
             data['Timestamp'] = int(datetime.strptime(data['TickTime'], "%Y-%m-%d %H:%M:%S.%f").timestamp() * SECOND_UNIT)
         except ValueError:
-            Logger.fatal("time format error", date.today(), data['UpdateTime'], data['UpdateMillisec'])
+            logger.error(f"time format error {date.today()} {data['UpdateTime']} {data['UpdateMillisec']}")
             raise
 
         channel = f"TICK:{instrument_id}"

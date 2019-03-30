@@ -2,16 +2,20 @@
 import asyncio
 from collections import defaultdict
 from datetime import datetime
+import logging
+
 from aioredis.pubsub import Receiver
 import ujson
 from startpro.core.utils.loader import safe_init_run
 from startpro.core.process import Process
-from quant.utils import Logger
 from bella.asyncloop import ThreadSafeAsyncLoop
 from bella.constants import SECOND_UNIT, MINUTE_UNIT, HOUR_UNIT
 from bella.db._redis import redis, create_aredis
 from bella.exception_handler import handle_exceptions
 from bella.service import status_monitor
+
+
+logger = logging.getLogger("compose_bars")
 
 
 PERIODS = {
@@ -129,7 +133,7 @@ class Bar:
             'timestamp':            self.data['timestamp'] + remainder
         }
         redis.publish(f"BAR:{self.name}:{self.instrument}", ujson.dumps(bar))
-        Logger.info(f"dump {self.name} {self.instrument} @ {bar['timestamp']}")
+        logger.info(f"dump {self.name} {self.instrument} @ {bar['timestamp']}")
         self.new()
 
 
@@ -152,7 +156,7 @@ class BarComposer(Process):
         mpsc = Receiver()
         pattern = mpsc.pattern("TICK:*")
         await aredis.psubscribe(pattern)
-        Logger.info("subscribed")
+        logger.info("subscribed")
         async for channel, data in mpsc.iter():
             data = ujson.loads(data[1])
             self.handle_tick(data)
