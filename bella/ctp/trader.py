@@ -2,6 +2,7 @@
 CTP交易接口
 """
 from collections import defaultdict
+import json
 import datetime
 import pickle
 from queue import Queue
@@ -148,7 +149,7 @@ class Trader(TraderApi):
             Logger.info(f'GetTradingDay:[{self.trading_day}] GetApiVersion:[{self.GetApiVersion()}]')
 
             # 先确认投资者结算,确认后才可交易
-            self.confirmSettlement()
+            self.getSettlement()
 
     def OnRspError(self, pRspInfo, nRequestID, bIsLast):      
         Logger.error("OnRspError", struct_to_dict(pRspInfo))  
@@ -205,6 +206,8 @@ class Trader(TraderApi):
             with open(filename, "w") as f:
                 f.write(self.settlement_info)
             Logger.info('结算单信息已生成 ')
+            # 确认结算信息
+            self.confirmSettlement()
 
     def OnRspSettlementInfoConfirm(self, pSettlementInfoConfirm, pRspInfo, nRequestID, bIsLast):
         """投资者结算结果确认响应"""

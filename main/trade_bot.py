@@ -41,6 +41,16 @@ class TradingAPI:
         return api.action("ctp_order", "read", params={"OrderRef": orderref})
 
     @staticmethod
+    def get_order(order_id):
+        order = api.action("order", "read", params={"ID": order_id})
+        order['split_options'] = {
+            "sleep_after_submit": order['SplitSleepAfterSubmit'],
+            "sleep_after_cancel": order['SplitSleepAfterCancel'],
+            "split_percent": order['SplitPercent'],
+        }
+        return order
+
+    @staticmethod
     def insert_order(account, instrument, price, volume, direction, offset, split_options):
         data = {
             "Account": account,
@@ -80,7 +90,7 @@ class TradingAPI:
             "InsertTime": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
             "Finished": False,
         }
-        resp = api.action("ctp_order", "create", params=data)
+        api.action("ctp_order", "create", params=data)
 
     @staticmethod
     def insert_ctp_trade(account, pTrade):
@@ -96,14 +106,10 @@ class TradingAPI:
 
     @classmethod
     def update_ctp_order(cls, pOrder):
-        try:
-            order_id = cls.query_order(pOrder.OrderRef.decode())
-        except ValueError:
-            return
         complete_time = cancel_time = None
         if pOrder.VolumeTotal == 0:
             complete_time = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
-        if pOrder.StatusMsg.decode("gbk") == "已撤单":
+        if pOrder.OrderStatus == ApiStruct.OST_Canceled:
             cancel_time = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
         update_time = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
         finished = bool(complete_time or cancel_time)
@@ -202,6 +208,8 @@ class TraderBot(Trader):
 
     def OnRspQryInvestorPosition(self, pInvestorPosition, pRspInfo, nRequestID, bIsLast):
         """请求查询投资者持仓响应"""
+        if pInvestorPosition is None:
+            return
         data = struct_to_dict(pInvestorPosition)
 
         D = "L" if data['PosiDirection'] == '2' else 'S'
@@ -213,15 +221,7 @@ class TraderBot(Trader):
         position['NetAmount'] = position.get('TotalLPosition', 0) - position.get('TotalSPosition', 0)
 
         # Redis Status
-        redis.hset("Position", data['InstrumentID'], ujson.dumps(position))
-
-    def OnErrRtnOrderInsert(self, pInputOrder, pRspInfo):
-        api.action("ctp_order", "partial_update", params={
-            "OrderRef": pInputOrder.OrderRef.decode("gbk"),
-            "Finished": True,
-            "StatusMsg": pRspInfo.ErrorMsg.decode("gbk"),
-            "CancelTime": datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-        })
+        redis.hset(f"Position:{self.account_name}", data['InstrumentID'], ujson.dumps(position))
 
     def send_order(self, instrument, price, volume, direction, offset, order_id):
         orderref = str(self.inc_orderref_id())
@@ -245,10 +245,12 @@ class TraderBot(Trader):
             VolumeCondition=ApiStruct.VC_AV,
             MinVolume=1,
         )
+
+        # 插入API必须在CTP报单之前，否则OnRtnOrder时可能查询不到报单
+        TradingAPI.insert_ctp_order(self.account_name, order_id, order, self.front_id)
+
         self.ReqOrderInsert(order, self.inc_request_id())
 
-        # API
-        TradingAPI.insert_ctp_order(self.account_name, order_id, order, self.front_id)
         return orderref
 
     def cancel_order(self, instrument, order_ref, front_id, session_id):
@@ -285,6 +287,7 @@ class TaskManager:
         while True:
             resp = api.action("order", "list", params={"Status": status_flag, "Account": self.trader.account_name})
             for order in resp:
+                print("启动任务", order['ID'], order['InstrumentID'], order['Direction'], order['Volume'], '@', order['Price'])
                 self.submit(order['ID'])
             await asyncio.sleep(1, loop=self.loop)
             status_flag = OrderStatus.INACTIVE
@@ -296,47 +299,24 @@ class TaskManager:
         asyncio.ensure_future(self.trade(order_id), loop=self.loop)
 
     def get_task(self, order_id):
-        task = api.action("order", "read", params={"ID": order_id})
-        task['split_options'] = {
-            "sleep_after_submit": task['SplitSleepAfterSubmit'],
-            "sleep_after_cancel": task['SplitSleepAfterCancel'],
-            "split_percent": task['SplitPercent'],
-        }
-        return task
+        return TradingAPI.get_order(order_id)
 
-    async def trade(self, order_id):
+    async def trade(self, order_id, retries=20):
+        if retries == 0:
+            print(order_id, "尝试达到最大次数，停止。")
+            api.action("order", "partial_update", params={
+                "ID": order_id,
+                "Status": OrderStatus.FINISHED,
+                "StatusMsg": "尝试达到最大次数",
+                "CancelTime": datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+            })
+            return
         task = self.get_task(order_id)
         if task['Status'] == OrderStatus.FINISHED:
             return
-        if task['Offset'] == ApiStruct.OF_Close:
-            # 处理平仓，优先平昨
-            if task['Direction'] == ApiStruct.D_Buy:
-                cs = 'S'
-            else:
-                cs = 'L'
-            position = TraderInterface.query_position(task['InstrumentID'])
-            # 优先使用昨仓
-            volumes_holding = position.get(f'Yd{cs}Position', 0)
-            offset = ApiStruct.OF_CloseYesterday
-            if not volumes_holding:
-                # 如果没有昨仓，使用今仓
-                volumes_holding = position.get(f'Today{cs}Position', 0)
-                offset = ApiStruct.OF_CloseToday
-            if not volumes_holding:
-                # 如果已经没有仓位了，取消整个订单
-                api.action("order", "partial_update", params={
-                    "ID": order_id,
-                    "Status": OrderStatus.FINISHED,
-                    "StatusMsg": "平仓数量不够",
-                    "CancelTime": datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
-                })
-                return
-        else:
-            # 如果开仓，不限数量
-            volumes_holding = 99999999999
-            offset = task['Offset']
-        volumes_left = min(task['VolumesTotal'] - task['VolumesTraded'], volumes_holding)
-        trade_volume = self.decide_volume(volumes_left, task['split_options'])
+        trade_volume, offset = self.decide_volume_and_offset(task)
+        if not trade_volume:
+            return
         price = self.decide_price(task['InstrumentID'], task['Direction'], task['Price'])
         orderref = self.trader.send_order(task['InstrumentID'],
                                           price,
@@ -358,13 +338,41 @@ class TaskManager:
             })
             return
         await asyncio.sleep(task['split_options']['sleep_after_cancel'], loop=self.loop)
-        await self.trade(order_id)
+        await self.trade(order_id, retries - 1)
 
     @staticmethod
-    def decide_volume(total_volume, split_options):
-        percent = split_options['split_percent']
-        volume = max(min(max(round(percent * total_volume), 1), total_volume), 0)
-        return volume
+    def decide_volume_and_offset(task):
+        if task['Offset'] == ApiStruct.OF_Close:
+            # 处理平仓，优先平昨
+            if task['Direction'] == ApiStruct.D_Buy:
+                cs = 'S'
+            else:
+                cs = 'L'
+            position = TraderInterface.query_position(task['InstrumentID'])
+            # 优先使用昨仓
+            volumes_holding = position.get(f'Yd{cs}Position', 0)
+            offset = ApiStruct.OF_CloseYesterday
+            if not volumes_holding:
+                # 如果没有昨仓，使用今仓
+                volumes_holding = position.get(f'Today{cs}Position', 0)
+                offset = ApiStruct.OF_CloseToday
+            if not volumes_holding:
+                # 如果已经没有仓位了，取消整个订单
+                api.action("order", "partial_update", params={
+                    "ID": task['ID'],
+                    "Status": OrderStatus.FINISHED,
+                    "StatusMsg": "平仓数量不够",
+                    "CancelTime": datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
+                })
+                return 0, None
+        else:
+            # 如果开仓，不限数量
+            volumes_holding = 99999999999
+            offset = task['Offset']
+        volumes_left = max(min(task['VolumesTotal'] - task['VolumesTraded'], volumes_holding), 0)
+        percent = task['split_options']['split_percent']
+        volume = min(max(round(percent * volumes_left), 1), volumes_left)
+        return volume, offset
 
     @staticmethod
     def decide_price(instrument, direction, price):
@@ -411,7 +419,7 @@ class TraderInterface:
     @staticmethod
     def query_position(instrument):
         empty_position = '{"TotalLPosition": 0, "YdLPosition": 0, "TodayLPosition": 0, "NetAmount": 0}'
-        return ujson.loads(redis.hget("Position", instrument) or empty_position)
+        return ujson.loads(redis.hget(f"Position:{self.account_name}", instrument) or empty_position)
 
     def query_price(self, instrument):
         return ujson.loads(redis.hget("Price", instrument))

@@ -87,7 +87,7 @@ class CTPOrderViewSet(ModelViewSet):
     serializer_class = CTPOrderSerializer
 
     def partial_update(self, request, pk=None):
-        result = super().partial_update(request, id)
+        result = super().partial_update(request, pk)
         queryset = CTPOrder.objects.all()
         order = get_object_or_404(queryset, pk=pk).OrderID
         related_ctp_orders = CTPOrder.objects.filter(OrderID=order)
