@@ -77,6 +77,12 @@ class Trader(TraderApi):
         result = self.ReqQryInvestorPosition(req, self.inc_request_id())
         logger.info(f'GetPosition ,result:[{result}]')
 
+    def getPositionDetail(self):
+        """查询分笔持仓"""
+        req = ApiStruct.QryInvestorPositionDetail(BrokerID=self.broker_id, InvestorID=self.investor_id)                  
+        result = self.ReqQryInvestorPositionDetail(req, self.inc_request_id())
+        logger.info(f'GetPositionDetail ,result:[{result}]')
+
     def getSettlement(self, trading_day=''):
         self.settlement_info = ''
         trading_day = trading_day or self.trading_day
@@ -154,6 +160,8 @@ class Trader(TraderApi):
 
             # 先确认投资者结算,确认后才可交易
             self.getSettlement()
+            # 确认结算信息
+            self.confirmSettlement()
 
     def OnRspError(self, pRspInfo, nRequestID, bIsLast):      
         logger.error(f"OnRspError {struct_to_dict(pRspInfo)}")
@@ -192,8 +200,7 @@ class Trader(TraderApi):
     def OnRspQryInvestorPositionDetail(self, pInvestorPositionDetail, pRspInfo, nRequestID, bIsLast):
         """请求查询投资者仓位明细响应"""
         data = struct_to_dict(pInvestorPositionDetail)
-        data = json.dumps(data).decode('unicode_escape')
-        logger.info(f"OnRspQryInvestorPositionDetail {data}, {struct_to_dict(pRspInfo)}, {bIsLast}")
+        logger.info(f"OnRspQryInvestorPositionDetail {data}")
 
     def OnRspQrySettlementInfo(self, pSettlementInfo, pRspInfo, nRequestID, bIsLast):
         """请求查询投资者结算结果响应"""
@@ -204,14 +211,11 @@ class Trader(TraderApi):
         data = struct_to_dict(pSettlementInfo)
 
         self.settlement_info += data.get('Content')
-        data = json.dumps(data)
         if bIsLast:
             filename = f"settlements/{pSettlementInfo.TradingDay.decode()}-{pSettlementInfo.InvestorID.decode()}.txt"
             with open(filename, "w") as f:
                 f.write(self.settlement_info)
             logger.info('结算单信息已生成 ')
-            # 确认结算信息
-            self.confirmSettlement()
 
     def OnRspSettlementInfoConfirm(self, pSettlementInfoConfirm, pRspInfo, nRequestID, bIsLast):
         """投资者结算结果确认响应"""

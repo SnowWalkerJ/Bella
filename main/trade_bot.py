@@ -139,6 +139,7 @@ class TraderBot(Trader):
     def __init__(self, account_name):
         self.account_name = account_name
         account_info = api.action("ctp", "read", params={"Name": account_name})
+        self.position_detail_cache = {}
         super().__init__(account_info['TdHost'].encode(),
                          account_info['UserID'].encode(),
                          account_info['BrokerID'].encode(),
@@ -221,9 +222,32 @@ class TraderBot(Trader):
         position[f'Yd{D}Position'] = data['YdPosition']
         position[f'Today{D}Position'] = data['TodayPosition']
         position['NetAmount'] = position.get('TotalLPosition', 0) - position.get('TotalSPosition', 0)
-
-        # Redis Status
         redis.hset(f"Position:{self.account_name}", data['InstrumentID'], ujson.dumps(position))
+
+    def OnRspQryInvestorPositionDetail(self, pInvestorPositionDetail, pRspInfo, nRequestID, bIsLast):
+        position = self.position_detail_cache.get(pInvestorPositionDetail.InstrumentID.decode(), {})
+        if pInvestorPositionDetail.Direction == ApiStruct.D_Buy:
+            D = 'L'
+        else:
+            D = 'S'
+        if pInvestorPositionDetail.OpenDate == self.trading_day:
+            T = 'Today'
+        else:
+            T = 'Yd'
+        position[f'{T}{D}Open'] = position.get(f'{T}{D}Open', 0) + pInvestorPositionDetail.Volume
+        position[f'{T}{D}Close'] = position.get(f'{T}{D}Close', 0)
+        position[f'{T}{D}Position'] = position[f'{T}{D}Open', 0] - position[f'{T}{D}Close']
+        self.position_detail_cache['pInvestorPositionDetail.InstrumentID.decode()'] = position
+
+        if bIsLast:
+            for key, value in self.position_detail_cache.items():
+                redis.hset(f"Position:{self.account_name}", key, ujson.dumps(value))
+
+    ############## API
+
+    def getPositionDetail(self):
+        self.position_detail_cache = {}
+        super().getPositionDetail()
 
     def send_order(self, instrument, price, volume, direction, offset, order_id):
         orderref = str(self.inc_orderref_id())
@@ -270,11 +294,6 @@ class TraderBot(Trader):
         req.InvestorID = self.investor_id
         req.UserID = self.investor_id
         self.ReqOrderAction(req, self.inc_request_id())
-
-    def query_position(self):
-        req = ApiStruct.QryInvestorPosition(BrokerID=self.broker_id,
-                                            InvestorID=self.investor_id)
-        self.ReqQryInvestorPosition(req, self.inc_request_id())
 
 
 class TaskManager:
@@ -419,9 +438,27 @@ class TraderInterface:
         self.task_manager = TaskManager(self.trader)
 
     @staticmethod
-    def query_position(instrument):
-        empty_position = '{"TotalLPosition": 0, "YdLPosition": 0, "TodayLPosition": 0, "NetAmount": 0}'
-        return ujson.loads(redis.hget(f"Position:{self.account_name}", instrument) or empty_position)
+    def query_position(account, instrument):
+        empty_position = {
+            "TodayLOpen": 0,
+            "TodayLClose": 0,
+            "TotalLPosition": 0,
+            "TodaySOpen": 0,
+            "TodaySClose": 0,
+            "TotalSPosition": 0,
+            "YdLOpen": 0,
+            "YdLClose": 0,
+            "YdLPosition": 0,
+            "YdSOpen": 0,
+            "YdSClose": 0,
+            "YdSPosition": 0,
+            "NetAmount": 0,
+        }
+        position = empty_position.copy()
+        record = redis.hget(f"Position:{account}", instrument)
+        if record:
+            position.update(ujson.loads(record))
+        return position
 
     def query_price(self, instrument):
         return ujson.loads(redis.hget("Price", instrument))
@@ -480,7 +517,7 @@ class TraderInterface:
 
     def _query_ctp_position(self):
         """每20秒向CTP请求一次仓位"""
-        self.trader.query_position()
+        self.trader.getPositionDetail()
         self.loop.call_later(20, self._query_ctp_position)
 
 
