@@ -63,7 +63,7 @@ class Trader(TraderApi):
         req = ApiStruct.QryInstrument()
         logger.info('获取有效合约')
         result = self.ReqQryInstrument(req, self.inc_request_id())
-        logger.info(f'getInstrument, result:[{result}]')
+        logger.debug(f'getInstrument, result:[{result}]')
 
     def getInvestor(self):
         """查询投资者"""
@@ -75,13 +75,13 @@ class Trader(TraderApi):
         """查询持仓"""
         req = ApiStruct.QryInvestorPosition(BrokerID=self.broker_id, InvestorID=self.investor_id)                  
         result = self.ReqQryInvestorPosition(req, self.inc_request_id())
-        logger.info(f'GetPosition ,result:[{result}]')
+        logger.debug(f'GetPosition ,result:[{result}]')
 
     def getPositionDetail(self):
         """查询分笔持仓"""
         req = ApiStruct.QryInvestorPositionDetail(BrokerID=self.broker_id, InvestorID=self.investor_id)                  
         result = self.ReqQryInvestorPositionDetail(req, self.inc_request_id())
-        logger.info(f'GetPositionDetail ,result:[{result}]')
+        logger.debug(f'GetPositionDetail, result:[{result}]')
 
     def getSettlement(self, trading_day=''):
         self.settlement_info = ''
@@ -89,7 +89,7 @@ class Trader(TraderApi):
 
         req = ApiStruct.QrySettlementInfo(BrokerID=self.broker_id, InvestorID=self.investor_id, TradingDay=trading_day)        
         result = self.ReqQrySettlementInfo(req, self.inc_request_id())
-        logger.info(f'获取结算单信息 {trading_day}, getSettlement {result}')
+        logger.debug(f'获取结算单信息 {trading_day}, getSettlement {result}')
 
     def confirmSettlement(self):
         """
@@ -229,7 +229,7 @@ class Trader(TraderApi):
 
     def OnErrRtnOrderAction(self, pOrderAction, pRspInfo):
         """报单撤单操作错误回报"""
-        logger.error(f'OnErrRtnOrderAction {struct_to_dict(pOrderAction)} {struct_to_dict(pRspInfo)}")
+        logger.error(f"OnErrRtnOrderAction {struct_to_dict(pOrderAction)} {struct_to_dict(pRspInfo)}")
 
     def OnErrRtnOrderInsert(self, pInputOrder, pRspInfo):
         """报单录入错误回报(交易所回报)"""

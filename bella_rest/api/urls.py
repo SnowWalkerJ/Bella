@@ -19,5 +19,5 @@ urlpatterns += [
     url(r"^schema$", schema_view),
     url(r"^instruments", views.InstrumentView.as_view()),
     url(r"^query_order_from_ctporder/(?P<pk>[^/.]+)/$", views.QueryOrderFromCTPOrder.as_view()),
-    url(r"^position/$", views.Position.as_view()),
+    url(r"^position/(?P<pk>[0-9]+)$", views.Position.as_view()),
 ]

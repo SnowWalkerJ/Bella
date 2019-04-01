@@ -20,6 +20,8 @@ from bella.service import status_monitor
 
 logger = logging.getLogger("trade_bot")
 
+logging.basicConfig(level=logging.INFO)
+
 
 class OrderStatus:
     INACTIVE = 0
@@ -235,9 +237,10 @@ class TraderBot(Trader):
         else:
             T = 'Yd'
         position[f'{T}{D}Open'] = position.get(f'{T}{D}Open', 0) + pInvestorPositionDetail.Volume
-        position[f'{T}{D}Close'] = position.get(f'{T}{D}Close', 0)
-        position[f'{T}{D}Position'] = position[f'{T}{D}Open', 0] - position[f'{T}{D}Close']
-        self.position_detail_cache['pInvestorPositionDetail.InstrumentID.decode()'] = position
+        position[f'{T}{D}Close'] = position.get(f'{T}{D}Close', 0) + pInvestorPositionDetail.CloseVolume
+        position[f'{T}{D}Position'] = position[f'{T}{D}Open'] - position[f'{T}{D}Close']
+        position[f'Total{D}Position'] = position[f'Today{D}Position'] + position[f'Yd{D}Position']
+        self.position_detail_cache[pInvestorPositionDetail.InstrumentID.decode()] = position
 
         if bIsLast:
             for key, value in self.position_detail_cache.items():
@@ -439,22 +442,23 @@ class TraderInterface:
 
     @staticmethod
     def query_position(account, instrument):
-        empty_position = {
+        position = {
             "TodayLOpen": 0,
             "TodayLClose": 0,
-            "TotalLPosition": 0,
+            "TodayLPosition": 0,
             "TodaySOpen": 0,
             "TodaySClose": 0,
-            "TotalSPosition": 0,
+            "TodaySPosition": 0,
             "YdLOpen": 0,
             "YdLClose": 0,
             "YdLPosition": 0,
             "YdSOpen": 0,
             "YdSClose": 0,
             "YdSPosition": 0,
+            "TotalLPosition": 0,
+            "TotalSPosition": 0,
             "NetAmount": 0,
         }
-        position = empty_position.copy()
         record = redis.hget(f"Position:{account}", instrument)
         if record:
             position.update(ujson.loads(record))
@@ -508,6 +512,7 @@ class TraderInterface:
             data = await sock.recv_json()
             fn_name = data['fn']
             kwargs = data['kwargs']
+            logging.info(f"Incoming request: {fn_name}({kwargs})")
             if fn_name not in self.EXPOSED_METHODS:
                 await sock.send(b"NotAllowed")
                 continue

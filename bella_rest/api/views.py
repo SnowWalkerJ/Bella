@@ -57,6 +57,14 @@ class OrderViewSet(ModelViewSet):
             qs = qs.filter(Status=qp['Status'])
         if "Account" in qp:
             qs = qs.filter(Account=qp["Account"])
+        if "Finished" in qp:
+            print(qp['Finished'])
+            if qp['Finished']:
+                qs = qs.filter(Status=2)
+            else:
+                qs = qs.exclude(Status=2)
+        if "Today" in qp:
+            qs = qs.filter(InsertTime__gt=datetime.now().strftime("%Y-%m-%d"))
         return qs
 
     def create(self, request):
@@ -162,9 +170,29 @@ class QueryOrderFromCTPOrder(APIView):
 
 
 class Position(APIView):
-    def get(self, request):
+    def get(self, request, pk=None):
+        empty_position = {
+            "TodayLOpen": 0,
+            "TodayLClose": 0,
+            "TodayLPosition": 0,
+            "TodaySOpen": 0,
+            "TodaySClose": 0,
+            "TodaySPosition": 0,
+            "YdLOpen": 0,
+            "YdLClose": 0,
+            "YdLPosition": 0,
+            "YdSOpen": 0,
+            "YdSClose": 0,
+            "YdSPosition": 0,
+            "TotalLPosition": 0,
+            "TotalSPosition": 0,
+            "NetAmount": 0,
+        }
         data = {}
-        keys = redis.hkeys("Position")
+        keys = redis.hkeys(f"Position:{pk}")
         for key in keys:
-            data[key] = ujson.loads(redis.hget("Position", key))
+            key = key.decode()
+            position = empty_position.copy()
+            position.update(ujson.loads(redis.hget("Position", key)))
+            data[key] = position
         return Response(data)
