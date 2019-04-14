@@ -3,16 +3,18 @@ from django.db import models
 
 class CTPOrder(models.Model):
     # Primary Keys
-    BrokerID = models.CharField(max_length=20)
-    InvestorID = models.CharField(max_length=20)
-    OrderRef = models.CharField(max_length=20, primary_key=True)
+    OrderSysID = models.CharField(max_length=20, null=True, blank=True)
+    FrontID = models.CharField(max_length=20)
+    SessionID = models.CharField(max_length=20)
+    OrderRef = models.CharField(max_length=20)
 
     # Foreign Key
-    OrderID = models.ForeignKey("Order", on_delete=models.CASCADE)
+    OrderID = models.ForeignKey("Order", on_delete=models.CASCADE, null=True)
 
     # Fields
     Account = models.ForeignKey("CTPAccount", on_delete=models.CASCADE)
-    FrontID = models.CharField(max_length=20, blank=True)
+    InvestorID = models.CharField(max_length=20)
+    BrokerID = models.CharField(max_length=20)
     InstrumentID = models.CharField(max_length=20)
     Direction = models.CharField(max_length=1)
     Offset = models.CharField(max_length=1)
@@ -25,11 +27,13 @@ class CTPOrder(models.Model):
     CompleteTime = models.DateTimeField(null=True, blank=True)
     StatusMsg = models.CharField(blank=True, null=True, max_length=80)
     Finished = models.BooleanField(default=False)
+    IsDummy = models.BooleanField(default=False)
 
     class Meta:
         indexes = [
-            models.Index(fields=['BrokerID', 'InvestorID', 'OrderRef']),
+            models.Index(fields=['FrontID', 'SessionID', 'OrderRef']),
+            models.Index(fields=['OrderSysID']),
         ]
         unique_together = (
-            ('BrokerID', 'InvestorID', 'OrderRef'),
+            ('FrontID', 'SessionID', 'OrderRef'),
         )

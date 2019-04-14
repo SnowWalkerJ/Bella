@@ -10,7 +10,7 @@ class Order(models.Model):
     Price = models.CharField(max_length=8)
     VolumesTotal = models.IntegerField()
     VolumesTraded = models.IntegerField(default=0)
-    InsertTime = models.DateTimeField()
+    InsertTime = models.DateTimeField(auto_now_add=True, blank=True)
     SplitSleepAfterSubmit = models.FloatField()
     SplitSleepAfterCancel = models.FloatField()
     SplitPercent = models.FloatField()
@@ -18,3 +18,4 @@ class Order(models.Model):
     CompleteTime = models.DateTimeField(null=True, blank=True)
     StatusMsg = models.CharField(max_length=80, blank=True)
     Status = models.IntegerField(default=0)  # 0: inactive 1: running 2: finished
+    IsDummy = models.BooleanField(default=False)

@@ -2,24 +2,23 @@ import os
 from redis import Redis
 from aioredis import create_redis
 
+from ..config import CONFIG
 
-REDIS_HOST   = os.environ.get("BELLA_REDIS_HOST", "localhost")
-REDIS_PORT   = int(os.environ.get("BELLA_REDIS_PORT", "6379"))
-REDIS_DB     = int(os.environ.get("BELLA_REDIS_DB", 0))
-REDIS_PASSWD = os.environ.get("BELLA_REDIS_PASSWD")
+
+config = CONFIG['db']['redis']
 
 
 redis = Redis(
-    host=REDIS_HOST,
-    port=REDIS_PORT,
-    db=REDIS_DB,
-    password=REDIS_PASSWD
+    host=config.get('host', 'localhost'),
+    port=config.get('passowrd', 6379),
+    db=config.get('db', 0),
+    password=config.get('password'),
 )
 
-async def create_aredis(db=REDIS_DB, loop=None):
+async def create_aredis(db=None, loop=None):
     return await create_redis(
-        address=(REDIS_HOST, REDIS_PORT),
-        db=db,
-        password=REDIS_PASSWD,
+        address=(config.get('host', 'localhost'), config.get('passowrd', 6379)),
+        db=db or config.get('db', 0),
+        password=config.get('password'),
         loop=loop
     )

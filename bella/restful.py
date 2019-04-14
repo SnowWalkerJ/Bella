@@ -1,11 +1,14 @@
 import coreapi
 from coreapi.exceptions import ErrorMessage
 
+from .config import CONFIG
+
 
 class API:
     def __init__(self):
         self.client = coreapi.Client()
-        self.document = self.client.get("http://127.0.0.1:8000/api/schema")
+        config = CONFIG['api']
+        self.document = self.client.get("http://{host}:{port}/api/schema".format(host=config['host'], port=config['port']))
 
     def action(self, *keys, params, action=None):
         try:
@@ -27,7 +30,7 @@ def patch_coreapi():
     from collections import defaultdict
     import coreapi.transports.http
     from coreapi.transports.http import Params, empty_params
-    from coreapi.utils import guess_filename, is_file
+    from coreapi.utils import is_file
     from coreapi import exceptions, utils
 
     def _get_params(method, encoding, fields, params=None):

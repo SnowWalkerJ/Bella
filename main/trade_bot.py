@@ -4,10 +4,12 @@
 import asyncio
 from datetime import datetime
 import logging
+import sys
 
 import ujson
 import zmq
 import zmq.asyncio
+from coreapi.exceptions import ErrorMessage
 
 from bella.ctp.trader import Trader
 from bella.ctp.utils import struct_to_dict
@@ -21,6 +23,9 @@ from bella.service import status_monitor
 logger = logging.getLogger("trade_bot")
 
 logging.basicConfig(level=logging.INFO)
+
+# TODO: 处理OnErrRtnOrderInsert
+# TODO: 分离TradingAPI
 
 
 class OrderStatus:
@@ -41,8 +46,8 @@ def reformat_date(trading_day, time):
 
 class TradingAPI:
     @staticmethod
-    def get_ctp_order(orderref):
-        return api.action("ctp_order", "read", params={"OrderRef": orderref})
+    def get_ctp_order(sessionid, frontid, orderref):
+        return api.action("ctp_order", "read", params={"session_id": sessionid, "frontid": front_id, "order_ref": orderref})
 
     @staticmethod
     def get_order(order_id):
@@ -74,16 +79,14 @@ class TradingAPI:
         return resp['ID']
 
     @staticmethod
-    def insert_ctp_order(account, order_id, pInputOrder, front_id):
+    def insert_ctp_order(account, order_id, pInputOrder, session_id, front_id):
         data = {
             "Account": account,
-
             "BrokerID": pInputOrder.BrokerID.decode(),
             "InvestorID": pInputOrder.InvestorID.decode(),
+            "SessionID": session_id,
             "OrderRef": pInputOrder.OrderRef.decode(),
-
             "OrderID": order_id,
-
             "FrontID": front_id,
             "InstrumentID": pInputOrder.InstrumentID.decode(),
             "Direction": pInputOrder.Direction.decode(),
@@ -99,9 +102,9 @@ class TradingAPI:
     @staticmethod
     def insert_ctp_trade(account, pTrade):
         data = {
+            "OrderSysID": pTrade.OrderSysID.decode(),
             "Account": account,
             "TradeID": pTrade.TradeID.decode(),
-            "CTPOrderID": pTrade.OrderRef.decode(),
             "Price": pTrade.Price,
             "Volume": pTrade.Volume,
             "TradeTime": reformat_date(pTrade.TradeDate, pTrade.TradeTime)
@@ -109,7 +112,7 @@ class TradingAPI:
         api.action("ctp_trade", "create", params=data)
 
     @classmethod
-    def update_ctp_order(cls, pOrder):
+    def update_ctp_order(cls, account_name, pOrder, session_id=None, front_id=None):
         complete_time = cancel_time = None
         if pOrder.VolumeTotal == 0:
             complete_time = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
@@ -117,8 +120,21 @@ class TradingAPI:
             cancel_time = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
         update_time = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
         finished = bool(complete_time or cancel_time)
+        session_id = session_id or pOrder.SessionID.decode()
+        front_id = front_id or pOrder.FrontID.decode()
         data = {
+            "Account": account_name,
+            "BrokerID": pOrder.BrokerID.decode(),
+            "InvestorID": pOrder.InvestorID.decode(),
+            "SessionID": session_id,
+            "FrontID": front_id,
             'OrderRef': pOrder.OrderRef.decode(),
+            "OrderSysID": pOrder.OrderSysID.decode(),
+            "InstrumentID": pOrder.InstrumentID.decode(),
+            "Direction": pOrder.Direction.decode(),
+            "Offset": pOrder.CombOffsetFlag.decode(),
+            "Price": pOrder.LimitPrice,
+            "VolumesTotal": pOrder.VolumeTotalOriginal,
             'VolumesTraded': pOrder.VolumeTraded,
             'UpdateTime': update_time,
             'CompleteTime': complete_time,
@@ -163,8 +179,11 @@ class TraderBot(Trader):
         报单通知（通过参数检测->已经提交成功）
         """
         # redis.publish("Trader:OnRtnOrder", ujson.dumps(struct_to_dict(pOrder)))
-        TradingAPI.update_ctp_order(pOrder)
+        TradingAPI.update_ctp_order(self.account_name, pOrder)
         # super().OnRtnOrder(pOrder)
+
+    def OnErrRtnOrderInsert(self, pInputOrder, pRspInfo):
+        TradingAPI.update_ctp_order(self.account_name, pOrder, session_id=self.session_id.decode(), front_id=self.front_id.decode())
 
     def OnRtnInstrumentStatus(self, pInstrumentStatus):
         """合约交易状态通知"""
@@ -244,6 +263,8 @@ class TraderBot(Trader):
             "TotalSPosition": 0,
             "NetAmount": 0,
         }
+        if pInvestorPositionDetail is none:
+            return
         position = self.position_detail_cache.get(pInvestorPositionDetail.InstrumentID.decode(), empty_position)
         if pInvestorPositionDetail.Direction == ApiStruct.D_Buy:
             D = 'L'
@@ -253,9 +274,10 @@ class TraderBot(Trader):
             T = 'Today'
         else:
             T = 'Yd'
-        position[f'{T}{D}Open'] = position[f'{T}{D}Open'] + pInvestorPositionDetail.Volume
         position[f'{T}{D}Close'] = position[f'{T}{D}Close'] + pInvestorPositionDetail.CloseVolume
-        position[f'{T}{D}Position'] = position[f'{T}{D}Open'] - position[f'{T}{D}Close']
+        position[f'{T}{D}Position'] = position[f'{T}{D}Position'] + pInvestorPositionDetail.Volume
+        if T == 'Today':
+            position[f'{T}{D}Open'] = position[f'{T}{D}Position'] + position[f'{T}{D}Close']
         position[f'Total{D}Position'] = position[f'Today{D}Position'] + position[f'Yd{D}Position']
         position['NetAmount'] = position['TotalLPosition'] - position['TotalSPosition']
         self.position_detail_cache[pInvestorPositionDetail.InstrumentID.decode()] = position
@@ -294,11 +316,11 @@ class TraderBot(Trader):
         )
 
         # 插入API必须在CTP报单之前，否则OnRtnOrder时可能查询不到报单
-        TradingAPI.insert_ctp_order(self.account_name, order_id, order, self.front_id)
+        TradingAPI.insert_ctp_order(self.account_name, order_id, order, self.session_id.decode(), self.front_id.decode())
 
         self.ReqOrderInsert(order, self.inc_request_id())
 
-        return orderref
+        return self.session_id.decode(), self.front_id.decode(), orderref
 
     def cancel_order(self, instrument, order_ref, front_id, session_id):
         """
@@ -307,8 +329,8 @@ class TraderBot(Trader):
         req = ApiStruct.InputOrderAction()
         req.InstrumentID = instrument.encode()
         req.OrderRef = order_ref.encode()
-        req.FrontID = front_id
-        req.SessionID = session_id
+        req.FrontID = front_id.encode()
+        req.SessionID = session_id.encode()
 
         req.ActionFlag = ApiStruct.AF_Delete  # 删除
         req.BrokerID = self.broker_id
@@ -329,7 +351,7 @@ class TaskManager:
         while True:
             resp = api.action("order", "list", params={"Status": status_flag, "Account": self.trader.account_name})
             for order in resp:
-                logger.info(f"启动任务 {order['ID']} {order['InstrumentID']} {order['Direction']} {order['Volume']} @ {order['Price']}")
+                logger.info(f"启动任务 {order['ID']} {order['InstrumentID']} {order['Direction']} {order['VolumesTotal'] - order['VolumesTraded']} @ {order['Price']}")
                 self.submit(order['ID'])
             await asyncio.sleep(1, loop=self.loop)
             status_flag = OrderStatus.INACTIVE
@@ -345,7 +367,7 @@ class TaskManager:
 
     async def trade(self, order_id, retries=20):
         if retries == 0:
-            logger.info(order_id, "尝试达到最大次数，停止。")
+            logger.info(f"{order_id}尝试达到最大次数，停止。")
             api.action("order", "partial_update", params={
                 "ID": order_id,
                 "Status": OrderStatus.FINISHED,
@@ -360,16 +382,16 @@ class TaskManager:
         if not trade_volume:
             return
         price = self.decide_price(task['InstrumentID'], task['Direction'], task['Price'])
-        orderref = self.trader.send_order(task['InstrumentID'],
-                                          price,
-                                          trade_volume,
-                                          task['Direction'],
-                                          offset,
-                                          order_id)
+        sessionid, frontid, orderref = self.trader.send_order(task['InstrumentID'],
+                                                              price,
+                                                              trade_volume,
+                                                              task['Direction'],
+                                                              offset,
+                                                              order_id)
         await asyncio.sleep(task['split_options']['sleep_after_submit'], loop=self.loop)
-        ctp_order = TradingAPI.get_ctp_order(orderref)
+        ctp_order = TradingAPI.get_ctp_order(sessionid, frontid, orderref)
         if not ctp_order['Finished']:
-            self.trader.cancel_order(task['InstrumentID'], orderref, self.trader.front_id, self.trader.session_id)
+            self.trader.cancel_order(task['InstrumentID'], orderref, frontid, sessionid)
         if ctp_order.get('CancelTime'):
             # 如果CTP发单出错，那么直接取消整个订单
             api.action("order", "partial_update", params={
@@ -382,15 +404,14 @@ class TaskManager:
         await asyncio.sleep(task['split_options']['sleep_after_cancel'], loop=self.loop)
         await self.trade(order_id, retries - 1)
 
-    @staticmethod
-    def decide_volume_and_offset(task):
+    def decide_volume_and_offset(self, task):
         if task['Offset'] == ApiStruct.OF_Close:
             # 处理平仓，优先平昨
             if task['Direction'] == ApiStruct.D_Buy:
                 cs = 'S'
             else:
                 cs = 'L'
-            position = TraderInterface.query_position(task['InstrumentID'])
+            position = TraderInterface.query_position(self.trader.account_name, task['InstrumentID'])
             # 优先使用昨仓
             volumes_holding = position.get(f'Yd{cs}Position', 0)
             offset = ApiStruct.OF_CloseYesterday
@@ -453,10 +474,17 @@ class TraderInterface:
 
     def __init__(self, account_name):
         self.account_name = account_name
+        self.url = self.register(account_name)
         self.loop = None
         self.trader = TraderBot(account_name)
         self.trader.login()
         self.task_manager = TaskManager(self.trader)
+
+    def register(self, account):
+        resp = api.action("tradebot", "create", params={"account": account})
+        if not resp['OK']:
+            raise RuntimeError(f"Tradebot with account {account} is already running")
+        return resp['url']
 
     @staticmethod
     def query_position(account, instrument):
@@ -504,22 +532,22 @@ class TraderInterface:
     def transaction_split(self, instrument, price, volume, direction, offset, split_options):
         if split_options is None:
             split_options = {
-                "sleep_after_submit": 1,
-                "sleep_after_cancel": 1,
+                "sleep_after_submit": 4,
+                "sleep_after_cancel": 2,
                 "split_percent": 1,
             }
         order_id = TradingAPI.insert_order(self.account_name, instrument, price, volume, direction, offset, split_options)
         # self.task_manager.submit(order_id)
-        asyncio.sleep(0.01, loop=self.loop)
         return {'order_id': order_id}
 
-    @status_monitor("TradeBot")
-    async def run(self, loop):
+    def run(self):
+        status_monitor(f"Tradebot_{self.account_name}")(self._run)()
+
+    async def _run(self, loop):
         self.task_manager.loop = self.loop = loop
-        URL = "ipc:///tmp/tradebot.sock"
         ctx = zmq.asyncio.Context()
         sock = ctx.socket(zmq.REP)
-        sock.bind(URL)
+        sock.bind(self.url)
         while not self.trader.login_status:
             # 等待直到CTP登录全部完成
             await asyncio.sleep(1)
@@ -545,4 +573,5 @@ class TraderInterface:
 
 
 if __name__ == "__main__":
-    TraderInterface('simnow').run()
+    account = sys.argv[1]
+    TraderInterface(account).run()

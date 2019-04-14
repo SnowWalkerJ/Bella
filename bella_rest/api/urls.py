@@ -18,6 +18,8 @@ urlpatterns = router.urls
 urlpatterns += [
     url(r"^schema$", schema_view),
     url(r"^instruments", views.InstrumentView.as_view()),
-    url(r"^query_order_from_ctporder/(?P<pk>[^/.]+)/$", views.QueryOrderFromCTPOrder.as_view()),
-    url(r"^position/(?P<pk>[0-9]+)$", views.Position.as_view()),
+    url(r"^query_order_from_ctporder/(?P<session_id>[^/.]+)/(?P<front_id>[^/.]+)/(?P<order_ref>[^/.]+)/$", views.QueryOrderFromCTPOrder.as_view()),
+    url(r"^position/(?P<pk>[^/.]+)/$", views.Position.as_view()),
+    url(r"^ctp_order/(?P<session_id>[^/.]+)/(?P<front_id>[^/.]+)/(?P<order_ref>[^/.]+)/$", views.CTPOrderDetailView.as_view()),
+    url(r"^tradebot/$", views.TradeBot.as_view()),
 ]

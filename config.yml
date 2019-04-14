@@ -1,2 +1,12 @@
-API_HOST: http://bella.snowwalkerj.cn
-API_PORT: 5000
+api:
+  host: '127.0.0.1'
+  port: 5000
+  tradebot:
+    socket_path: '/tmp/tradebot_{account}.sock'
+
+db:
+  redis:
+    host: 'localhost'
+    port: 6379
+    db: 0
+    password:

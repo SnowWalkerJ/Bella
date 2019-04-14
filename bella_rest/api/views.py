@@ -1,15 +1,18 @@
 from datetime import datetime
 from dateutil.parser import parse
+import os
 
 import ujson
 from django.shortcuts import get_object_or_404
-from rest_framework.viewsets import ReadOnlyModelViewSet, ModelViewSet
+from rest_framework.viewsets import ReadOnlyModelViewSet, ModelViewSet, GenericViewSet
 from rest_framework.views import APIView
 from rest_framework.schemas import AutoSchema
 from rest_framework.response import Response
+from rest_framework import mixins
 from arctic.date import DateRange
 import coreapi
-from bella.db import redis
+from bella.db import redis, arctic as ac
+from bella.config import CONFIG
 
 from .models.ctp_account import CTPAccount
 from .models.service import Service
@@ -90,27 +93,97 @@ class OrderViewSet(ModelViewSet):
         return Response({"ID": order.ID})
 
 
-class CTPOrderViewSet(ModelViewSet):
+class CTPOrderViewSet(mixins.ListModelMixin, GenericViewSet):
     queryset = CTPOrder.objects.all()
     serializer_class = CTPOrderSerializer
 
-    def partial_update(self, request, pk=None):
-        result = super().partial_update(request, pk)
-        queryset = CTPOrder.objects.all()
-        order = get_object_or_404(queryset, pk=pk).OrderID
-        related_ctp_orders = CTPOrder.objects.filter(OrderID=order)
+
+class CTPOrderDetailView(APIView):
+    queryset = CTPOrder.objects.all()
+    serializer_class = CTPOrderSerializer
+
+    def _create_dummy_order(self, request):
+        order = Order(
+            Account=request.data['Account'],
+            InstrumentID=request.data['InstrumentID'],
+            Direction=request.data['Direction'],
+            Offset=request.data['Offset'],
+            Price=request.data['Price'],
+            VolumesTotal=request.data['VolumesTotal'],
+            VolumesTraded=request.data['VolumesTraded'],
+            InsertTime=datetime.now(),
+            SplitSleepAfterSubmit=0,
+            SplitSleepAfterCancel=0,
+            SplitPercent=1,
+            Status=1,
+            IsDummy=True,
+        )
+        order.save()
+        return order
+
+    def _create_dummy_ctporder(self, request, session_id, front_id, order_ref):
+        ctp_order = CTPOrder(
+            FrontID=front_id,
+            SessionID=session_id,
+            OrderRef=order_ref,
+            OrderID=self._create_dummy_order(request),
+            Account=request.data['Account'],
+            InvestorID=request.data['InvestorID'],
+            BrokerID=request.data['BrokerID'],
+            InstrumentID=request.data['InstrumentID'],
+            Direction=request.data['Direction'],
+            Offset=request.data['Offset'],
+            Price=request.data['Price'],
+            VolumesTotal=request.data['VolumesTotal'],
+            VolumesTraded=request.data['VolumesTraded'],
+            InsertTime=datetime.now(),
+            IsDummy=True,
+        )
+        ctp_order.save()
+        return ctp_order
+
+    def _partial_update(self, request, session_id, front_id, order_ref):
+        try:
+            obj = self.queryset.get(SessionID=session_id, FrontID=front_id, OrderRef=order_ref)
+        except CTPOrder.DoesNotExist:
+            obj = self._create_dummy_ctporder(request, session_id, front_id, order_ref)
+        for field in CTPOrder._meta.fields:
+            field_name = field.name
+            if field_name in request.data:
+                setattr(obj, field_name, request.data['field_name'])
+            obj.save()
+        return obj
+
+    def _update_order_volumes(self, order):
+        related_ctp_orders = self.queryset.filter(OrderID=order)
         volumes_traded = sum((o.VolumesTraded for o in related_ctp_orders), 0)
         order.VolumesTraded = volumes_traded
         if order.VolumesTraded == order.VolumesTotal and order.Status != 2:
             order.Status = 2
             order.CompleteTime = datetime.now()
         order.save()
-        return result
+
+    def get(self, request, session_id, front_id, order_ref):
+        obj = get_object_or_404(self.queryset, SessionID=session_id, FrontID=front_id, OrderRef=order_ref)
+        return Response(self.serializer_class(obj).data)
+
+    def post(self, request, session_id, front_id, order_ref):
+        """partial_update"""
+        ctp_order = self._partial_update(request, session_id, front_id, order_ref)
+        order = ctp_order.OrderID
+        self._update_order_volumes(order)
+
+        return Response({})
 
 
 class CTPTradeViewSet(ModelViewSet):
     queryset = CTPTrade.objects.all()
     serializer_class = CTPTradeSerializer
+
+    def create(self, request):
+        ctp_order = get_object_or_404(CTPOrder.objects.all(), OrderSysID=request.data['OrderSysID'])
+        request.data['CTPOrderID'] = ctp_order.id
+        return super().create(request)
 
 
 class TaskViewSet(ModelViewSet):
@@ -156,16 +229,17 @@ class BarDataView(APIView):
         start_dt = request.query_params.get('start_dt')
         end_dt = request.query_params.get('end_dt')
 
-        lib = arctic.get_library(f"bar.{freq}")
+        lib = ac.get_library(f"bar.{freq}")
         date_range = DateRange(start_dt, end_dt)
         data = lib.read(contract, date_range=date_range)
         return data.to_dict(orient='index')
 
 
 class QueryOrderFromCTPOrder(APIView):
-    def get(self, request, pk):
-        queryset = CTPOrder.objects.all()
-        ctp_order = get_object_or_404(queryset, pk=pk)
+    queryset = CTPOrder.objects.all()
+
+    def get(self, request, session_id, front_id, order_ref):
+        ctp_order = get_object_or_404(self.queryset, SessionID=session_id, FrontID=front_id, OrderRef=order_ref)
         return Response({"OrderID": ctp_order.OrderID.ID})
 
 
@@ -193,6 +267,16 @@ class Position(APIView):
         for key in keys:
             key = key.decode()
             position = empty_position.copy()
-            position.update(ujson.loads(redis.hget("Position", key)))
+            position.update(ujson.loads(redis.hget(f"Position:{pk}", key)))
             data[key] = position
         return Response(data)
+
+
+class TradeBot(APIView):
+    def post(self, request):
+        account = request.data['account']
+        path = CONFIG['api']['tradebot']['socket_path'].format(account=account)
+        if os.path.exists(path):
+            return Response({"OK": False})
+        else:
+            return Response({"OK": True, "url": f"ipc://{path}"})
