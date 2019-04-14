@@ -227,7 +227,24 @@ class TraderBot(Trader):
         redis.hset(f"Position:{self.account_name}", data['InstrumentID'], ujson.dumps(position))
 
     def OnRspQryInvestorPositionDetail(self, pInvestorPositionDetail, pRspInfo, nRequestID, bIsLast):
-        position = self.position_detail_cache.get(pInvestorPositionDetail.InstrumentID.decode(), {})
+        empty_position = {
+            "TodayLOpen": 0,
+            "TodayLClose": 0,
+            "TodayLPosition": 0,
+            "TodaySOpen": 0,
+            "TodaySClose": 0,
+            "TodaySPosition": 0,
+            "YdLOpen": 0,
+            "YdLClose": 0,
+            "YdLPosition": 0,
+            "YdSOpen": 0,
+            "YdSClose": 0,
+            "YdSPosition": 0,
+            "TotalLPosition": 0,
+            "TotalSPosition": 0,
+            "NetAmount": 0,
+        }
+        position = self.position_detail_cache.get(pInvestorPositionDetail.InstrumentID.decode(), empty_position)
         if pInvestorPositionDetail.Direction == ApiStruct.D_Buy:
             D = 'L'
         else:
@@ -236,10 +253,11 @@ class TraderBot(Trader):
             T = 'Today'
         else:
             T = 'Yd'
-        position[f'{T}{D}Open'] = position.get(f'{T}{D}Open', 0) + pInvestorPositionDetail.Volume
-        position[f'{T}{D}Close'] = position.get(f'{T}{D}Close', 0) + pInvestorPositionDetail.CloseVolume
+        position[f'{T}{D}Open'] = position[f'{T}{D}Open'] + pInvestorPositionDetail.Volume
+        position[f'{T}{D}Close'] = position[f'{T}{D}Close'] + pInvestorPositionDetail.CloseVolume
         position[f'{T}{D}Position'] = position[f'{T}{D}Open'] - position[f'{T}{D}Close']
         position[f'Total{D}Position'] = position[f'Today{D}Position'] + position[f'Yd{D}Position']
+        position['NetAmount'] = position['TotalLPosition'] - position['TotalSPosition']
         self.position_detail_cache[pInvestorPositionDetail.InstrumentID.decode()] = position
 
         if bIsLast:
