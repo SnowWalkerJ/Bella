@@ -4,9 +4,10 @@ import os
 
 import ujson
 from django.shortcuts import get_object_or_404
+from rest_framework.generics import CreateAPIView
 from rest_framework.viewsets import ReadOnlyModelViewSet, ModelViewSet, GenericViewSet
 from rest_framework.views import APIView
-from rest_framework.schemas import AutoSchema
+from rest_framework.schemas import AutoSchema, ManualSchema
 from rest_framework.response import Response
 from rest_framework import mixins
 from arctic.date import DateRange
@@ -272,7 +273,11 @@ class Position(APIView):
         return Response(data)
 
 
-class TradeBot(APIView):
+class TradeBot(CreateAPIView):
+    schema = ManualSchema(fields=[
+        coreapi.Field("account", True, "form", description="account name"),
+    ])
+
     def post(self, request):
         account = request.data['account']
         path = CONFIG['api']['tradebot']['socket_path'].format(account=account)

@@ -5,5 +5,4 @@ from bella.config import CONFIG
 
 config = CONFIG['api']
 
-os.chdir("bella_rest")
-os.system(f"gunicorn bella_rest.wsgi:application -b 0.0.0.0:{config['port']}")
+os.system(f"gunicorn -b 0.0.0.0:{config['port']} --pythonpath bella_rest bella_rest.wsgi:application")
