@@ -1,12 +1,12 @@
 api:
   host: '127.0.0.1'
-  port: 5000
+  port: 1266
   tradebot:
     socket_path: '/tmp/tradebot_{account}.sock'
 
 db:
   redis:
     host: 'localhost'
-    port: 6379
+    port: 6340
     db: 0
     password:
