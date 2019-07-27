@@ -118,19 +118,20 @@ class CTPOrderDetailView(APIView):
             SplitSleepAfterSubmit=0,
             SplitSleepAfterCancel=0,
             SplitPercent=1,
-            Status=1,
+            Status=2,
             IsDummy=True,
         )
         order.save()
         return order
 
     def _create_dummy_ctporder(self, request, session_id, front_id, order_ref):
+        account = get_object_or_404(CTPAccount, Name=request.data['Account'])
         ctp_order = CTPOrder(
             FrontID=front_id,
             SessionID=session_id,
             OrderRef=order_ref,
             OrderID=self._create_dummy_order(request),
-            Account=request.data['Account'],
+            Account=account,
             InvestorID=request.data['InvestorID'],
             BrokerID=request.data['BrokerID'],
             InstrumentID=request.data['InstrumentID'],
@@ -153,7 +154,12 @@ class CTPOrderDetailView(APIView):
         for field in CTPOrder._meta.fields:
             field_name = field.name
             if field_name in request.data:
-                setattr(obj, field_name, request.data['field_name'])
+                value = request.data[field_name]
+                if field_name == "Account":
+                    value = get_object_or_404(CTPAccount, Name=request.data[field_name])
+                elif field_name == "OrderID":
+                    value = get_object_or_404(Order, ID=int(request.data[field_name]))
+                setattr(obj, field_name, value)
             obj.save()
         return obj
 

@@ -86,10 +86,10 @@ class TradingAPI:
             "Account": account,
             "BrokerID": pInputOrder.BrokerID.decode(),
             "InvestorID": pInputOrder.InvestorID.decode(),
-            "SessionID": session_id,
-            "OrderRef": pInputOrder.OrderRef.decode(),
+            "session_id": session_id,
+            "order_ref": pInputOrder.OrderRef.decode(),
             "OrderID": order_id,
-            "FrontID": front_id,
+            "front_id": front_id,
             "InstrumentID": pInputOrder.InstrumentID.decode(),
             "Direction": pInputOrder.Direction.decode(),
             "Offset": pInputOrder.CombOffsetFlag.decode(),
@@ -104,6 +104,7 @@ class TradingAPI:
     @staticmethod
     def insert_ctp_trade(account, pTrade):
         data = {
+            "CTPOrderID": 123456,      # This is dummy
             "OrderSysID": pTrade.OrderSysID.decode(),
             "Account": account,
             "TradeID": pTrade.TradeID.decode(),
@@ -122,15 +123,15 @@ class TradingAPI:
             cancel_time = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
         update_time = datetime.now().strftime("%Y-%m-%dT%H:%M:%S")
         finished = bool(complete_time or cancel_time)
-        session_id = session_id or pOrder.SessionID.decode()
-        front_id = front_id or pOrder.FrontID.decode()
+        session_id = session_id or pOrder.SessionID
+        front_id = front_id or pOrder.FrontID
         data = {
             "Account": account_name,
             "BrokerID": pOrder.BrokerID.decode(),
             "InvestorID": pOrder.InvestorID.decode(),
-            "SessionID": session_id,
-            "FrontID": front_id,
-            'OrderRef': pOrder.OrderRef.decode(),
+            "session_id": session_id,
+            "front_id": front_id,
+            'order_ref': pOrder.OrderRef.decode(),
             "OrderSysID": pOrder.OrderSysID.decode(),
             "InstrumentID": pOrder.InstrumentID.decode(),
             "Direction": pOrder.Direction.decode(),
@@ -144,7 +145,7 @@ class TradingAPI:
             'StatusMsg': pOrder.StatusMsg.decode("gbk"),
             'Finished': finished,
         }
-        api.action("ctp_order", "partial_update", params=data)
+        api.action("ctp_order", "create", params=data)
 
     @staticmethod
     def query_order(orderref):
@@ -159,6 +160,7 @@ class TraderBot(Trader):
     def __init__(self, account_name):
         self.account_name = account_name
         account_info = api.action("ctp", "read", params={"Name": account_name})
+        print(account_info)
         self.position_detail_cache = {}
         super().__init__(account_info['TdHost'],
                          account_info['UserID'],
@@ -580,4 +582,5 @@ class TraderInterface:
 
 if __name__ == "__main__":
     account = sys.argv[1]
+    print(account)
     TraderInterface(account).run()
