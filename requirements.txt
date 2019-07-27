@@ -4,6 +4,7 @@ arctic>=1.67.1
 django
 django_rest_framework
 django-cors-headers
+pyyaml
 pymongo
 ujson
 pandas
@@ -11,3 +12,4 @@ markdown
 coreapi
 zmq
 whitenoise
+ctpwrapper

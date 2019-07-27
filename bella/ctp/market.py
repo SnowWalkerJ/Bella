@@ -1,6 +1,6 @@
 import logging
 
-from ._ctp import ApiStruct, MdApi
+from .ctp import MdApi, ApiStruct
 from .utils import struct_to_dict
 from ..restful import api
 
@@ -27,7 +27,7 @@ class Market(MdApi):
         """
         Loggerin and init required
         """
-        flag = self.SubscribeMarketData([x.encode() for x in self.get_contracts()])
+        flag = self.SubscribeMarketData(self.get_contracts())
         logger.info(f'SubscribeMarketData status:[{flag}]')
 
     def handler_data(self, data):
@@ -49,12 +49,15 @@ class Market(MdApi):
             return
         return self.ioloop.call_at(when, *args, **kwargs)
 
+    def login(self):
+        req = ApiStruct.ReqUserLoginField(BrokerID=self.broker_id, UserID=self.user_id, Password=self.pass_wd)
+        r = self.ReqUserLogin(req, self.inc_request_id())
+        logger.info('login status:[%s]' % r)
+
     ############# 前台连接
 
     def OnFrontConnected(self):
-        req = ApiStruct.ReqUserLogin(BrokerID=self.broker_id, UserID=self.user_id, Password=self.pass_wd)
-        r = self.ReqUserLogin(req, self.inc_request_id())
-        logger.info('OnFrontConnected status:[%s]' % r)
+        self.login()
 
     def OnFrontDisconnected(self, nReason):
         logger.warn('OnFrontDisconnected:[%s]' % nReason)

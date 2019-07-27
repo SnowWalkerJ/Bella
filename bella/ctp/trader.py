@@ -10,7 +10,8 @@ import tempfile
 import time
 import logging
 
-from ._ctp import TraderApi, ApiStruct
+from ._ctp import ApiStruct, TraderApi
+
 from .utils import struct_to_dict
 from ..restful import api
 
@@ -23,44 +24,59 @@ CTP_FRONT_NOT_ACTIVE = 8
 
 
 class Trader(TraderApi):
-    def __init__(self, host, investor_id, broker_id, password):
-        self.host               = host
-        self.investor_id        = investor_id
-        self.broker_id          = broker_id
-        self.password           = password
+    def __init__(self, host, investor_id, broker_id, password, app_id, auth_code):
+        self.host = host
+        self.investor_id = investor_id
+        self.broker_id = broker_id
+        self.password = password
+        self.app_id = app_id
+        self.auth_code = auth_code
 
-        self.connected          = False
-        self.login_status       = False
-        self.instruments        = {}
-        self.settlement_info    = ''  
+        self.connected = False
+        self.login_status = False
+        self.instruments = {}
+        self.settlement_info = ''  
         self.investor_positions = defaultdict(dict)     # 投资者持仓
-        self.__positions_cache  = {}                    # 持仓缓存（持仓信息是分批发送的，先存在缓存中）
+        self.__positions_cache = {}                    # 持仓缓存（持仓信息是分批发送的，先存在缓存中）
 
-        self.session_id         = ''
-        self.front_id           = ''
-        self.request_id         = 0
-        self.orderref_id        = int(time.time())
-
-        self.rsp_queue          = Queue()
+        self.session_id = ''
+        self.front_id = ''
+        self.request_id = 0
+        self.orderref_id = int(time.time())
 
     ############# 主动API
 
-    def login(self):
-        tmp_path = tempfile.mkdtemp(prefix=f"trader_{datetime.date.today().strftime('%Y%m%d')}_").encode()
-        self.Create(tmp_path + b"/")
+    def start(self):
+        tmp_path = tempfile.mkdtemp(prefix=f"trader_{datetime.date.today().strftime('%Y%m%d')}_")
+        self.Create(tmp_path + "/")
         self.SubscribePrivateTopic(ApiStruct.TERT_RESUME)  # 从本交易日开始重传       
         self.SubscribePublicTopic(ApiStruct.TERT_RESUME)             
         self.RegisterFront(self.host)  # 注册前置机
         self.Init()
 
+    def authenticate(self):
+        req = ApiStruct.ReqAuthenticateField(
+            BrokerID=self.broker_id,
+            UserID=self.investor_id,
+            AppID=self.app_id,
+            AuthCode=self.auth_code,
+        )
+        r = self.ReqAuthenticate(req, self.inc_request_id())
+        logger.info(f'ReqAuthenticate status:[{r}]')
+
+    def login(self):
+        req = ApiStruct.ReqUserLoginField(BrokerID=self.broker_id, UserID=self.investor_id, Password=self.password)
+        r = self.ReqUserLogin(req, self.inc_request_id())
+        logger.info(f'user login status:[{r}]')
+
     def getAccount(self):
         """查询资金账户"""
-        req = ApiStruct.QryTradingAccount(BrokerID=self.broker_id, InvestorID=self.investor_id)        
+        req = ApiStruct.QryTradingAccountField(BrokerID=self.broker_id, InvestorID=self.investor_id)        
         self.ReqQryTradingAccount(req, self.inc_request_id())
 
     def getInstrument(self):
         """查询合约"""
-        req = ApiStruct.QryInstrument()
+        req = ApiStruct.QryInstrumentField()
         logger.info('获取有效合约')
         result = self.ReqQryInstrument(req, self.inc_request_id())
         logger.debug(f'getInstrument, result:[{result}]')
@@ -68,18 +84,18 @@ class Trader(TraderApi):
     def getInvestor(self):
         """查询投资者"""
         logger.info("查询投资者")
-        req = ApiStruct.QryInvestor(BrokerID=self.broker_id, InvestorID=self.investor_id)   
+        req = ApiStruct.QryInvestorField(BrokerID=self.broker_id, InvestorID=self.investor_id)   
         self.ReqQryInvestor(req, self.inc_request_id())
 
     def getPosition(self):
         """查询持仓"""
-        req = ApiStruct.QryInvestorPosition(BrokerID=self.broker_id, InvestorID=self.investor_id)                  
+        req = ApiStruct.QryInvestorPositionField(BrokerID=self.broker_id, InvestorID=self.investor_id)                  
         result = self.ReqQryInvestorPosition(req, self.inc_request_id())
         logger.debug(f'GetPosition ,result:[{result}]')
 
     def getPositionDetail(self):
         """查询分笔持仓"""
-        req = ApiStruct.QryInvestorPositionDetail(BrokerID=self.broker_id, InvestorID=self.investor_id)                  
+        req = ApiStruct.QryInvestorPositionDetailField(BrokerID=self.broker_id, InvestorID=self.investor_id)                  
         result = self.ReqQryInvestorPositionDetail(req, self.inc_request_id())
         logger.debug(f'GetPositionDetail, result:[{result}]')
 
@@ -87,7 +103,7 @@ class Trader(TraderApi):
         self.settlement_info = ''
         trading_day = trading_day or self.trading_day
 
-        req = ApiStruct.QrySettlementInfo(BrokerID=self.broker_id, InvestorID=self.investor_id, TradingDay=trading_day)        
+        req = ApiStruct.QrySettlementInfoField(BrokerID=self.broker_id, InvestorID=self.investor_id, TradingDay=trading_day)        
         result = self.ReqQrySettlementInfo(req, self.inc_request_id())
         logger.debug(f'获取结算单信息 {trading_day}, getSettlement {result}')
 
@@ -96,7 +112,7 @@ class Trader(TraderApi):
         确认结算信息
         """
         logger.info("确认结算信息")
-        req = ApiStruct.SettlementInfoConfirm(BrokerID=self.broker_id, InvestorID=self.investor_id)
+        req = ApiStruct.SettlementInfoConfirmField(BrokerID=self.broker_id, InvestorID=self.investor_id)
         result = self.ReqSettlementInfoConfirm(req, self.inc_request_id())
         logger.debug(f"confirmSettlement [{result}]")
 
@@ -106,9 +122,7 @@ class Trader(TraderApi):
         """
         前置机连接成功,用户登录
         """
-        req = ApiStruct.ReqUserLogin(BrokerID=self.broker_id, UserID=self.investor_id, Password=self.password)
-        r = self.ReqUserLogin(req, self.inc_request_id())
-        logger.info(f'OnFrontConnected status:[{r}]')
+        self.login()
 
     def OnFrontDisconnected(self, nReason):
         self.connected = False
@@ -141,6 +155,12 @@ class Trader(TraderApi):
 
     ############## 回报
 
+    def OnRspAuthenticate(self, pRspAuthenticateField, pRspInfo, nRequestID, bIsLast):
+        if pRspInfo.ErrorID:
+            logger.error(f"Authenticate Error: {pRspInfo.ErrorMsg.decode('gbk')}")
+        else:
+            self.login()
+
     def OnRspUserLogin(self, pRspUserLogin, pRspInfo, nRequestID, bIsLast):
         # 没有初始化,前置不活跃
         if pRspInfo.ErrorID in(CTP_NOT_INITED, CTP_FRONT_NOT_ACTIVE):
@@ -151,8 +171,8 @@ class Trader(TraderApi):
             error_msg = pRspInfo.ErrorMsg.decode('gbk')
             logger.error(f'OnRspUserLogin:[ErrorID={pRspInfo.ErrorID},ErrMsg={error_msg}]')
         else:
-            self.front_id = pRspUserLogin.FrontID
-            self.session_id = pRspUserLogin.SessionID
+            self.front_id = pRspUserLogin.FrontID.decode()
+            self.session_id = pRspUserLogin.SessionID.decode()
             self.trading_day = self.GetTradingDay()
 
             logger.info(f'{datetime.datetime.now()} {pRspUserLogin}')
@@ -163,16 +183,8 @@ class Trader(TraderApi):
             # 确认结算信息
             self.confirmSettlement()
 
-    def OnRspError(self, pRspInfo, nRequestID, bIsLast):      
+    def OnRspError(self, pRspInfo, nRequestID, bIsLast):
         logger.error(f"OnRspError {struct_to_dict(pRspInfo)}")
-        self.rsp_queue.put((
-            "OnRspError",
-            {
-                "pRspInfo": pRspInfo,
-                "nRequestID": nRequestID,
-                "bIsLast": bIsLast,
-            }
-        ))
 
     def OnRspOrderAction(self, pInputOrderAction, pRspInfo, nRequestID, bIsLast):
         """报单操作请求响应"""

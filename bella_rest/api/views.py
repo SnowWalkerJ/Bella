@@ -1,18 +1,19 @@
 from datetime import datetime
 from dateutil.parser import parse
 import os
+import tempfile
 
 import ujson
 from django.shortcuts import get_object_or_404
 from rest_framework.generics import CreateAPIView
-from rest_framework.viewsets import ReadOnlyModelViewSet, ModelViewSet, GenericViewSet
+from rest_framework.viewsets import ReadOnlyModelViewSet, ModelViewSet, GenericViewSet, ViewSet
 from rest_framework.views import APIView
 from rest_framework.schemas import AutoSchema, ManualSchema
 from rest_framework.response import Response
 from rest_framework import mixins
 from arctic.date import DateRange
 import coreapi
-from bella.db import redis, arctic as ac
+from bella.db import redis
 from bella.config import CONFIG
 
 from .models.ctp_account import CTPAccount
@@ -104,8 +105,9 @@ class CTPOrderDetailView(APIView):
     serializer_class = CTPOrderSerializer
 
     def _create_dummy_order(self, request):
+        account = get_object_or_404(CTPAccount, Name=request.data['Account'])
         order = Order(
-            Account=request.data['Account'],
+            Account=account,
             InstrumentID=request.data['InstrumentID'],
             Direction=request.data['Direction'],
             Offset=request.data['Offset'],
@@ -273,15 +275,27 @@ class Position(APIView):
         return Response(data)
 
 
-class TradeBot(CreateAPIView):
+class TradeBotViewSet(ViewSet):
     schema = ManualSchema(fields=[
         coreapi.Field("account", True, "form", description="account name"),
     ])
 
-    def post(self, request):
+    def create(self, request):
         account = request.data['account']
-        path = CONFIG['api']['tradebot']['socket_path'].format(account=account)
-        if os.path.exists(path):
+        if redis.hexists("tradebots", account):
             return Response({"OK": False})
         else:
-            return Response({"OK": True, "url": f"ipc://{path}"})
+            url = "ipc://" + tempfile.mktemp(".sock", "tradebot")
+            redis.hset("tradebots", account, url)
+            return Response({"OK": True, "url": url})
+
+    def retrieve(self, request, pk=None):
+        return Response({"url": redis.hget("tradebots", pk)})
+
+    def destroy(self, request, pk=None):
+        url = redis.hget("tradebots", pk)
+        if url:
+            path = url[6:]
+            if os.path.exists(path):
+                os.remove(path)
+        return Response({})

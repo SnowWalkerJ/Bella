@@ -13,6 +13,7 @@ router.register("task", views.TaskViewSet, "Task")
 router.register("order", views.OrderViewSet, "Order")
 router.register("ctp_order", views.CTPOrderViewSet, "CTPOrder")
 router.register("ctp_trade", views.CTPTradeViewSet, "CTPTrader")
+router.register("tradebot", views.TradeBotViewSet, "TradeBot")
 
 urlpatterns = router.urls
 urlpatterns += [
@@ -21,5 +22,4 @@ urlpatterns += [
     url(r"^query_order_from_ctporder/(?P<session_id>[^/.]+)/(?P<front_id>[^/.]+)/(?P<order_ref>[^/.]+)/$", views.QueryOrderFromCTPOrder.as_view()),
     url(r"^position/(?P<pk>[^/.]+)/$", views.Position.as_view()),
     url(r"^ctp_order/(?P<session_id>[^/.]+)/(?P<front_id>[^/.]+)/(?P<order_ref>[^/.]+)/$", views.CTPOrderDetailView.as_view()),
-    url(r"^tradebot/$", views.TradeBot.as_view()),
 ]

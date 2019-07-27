@@ -2,8 +2,10 @@
 自动化交易机器人，实现拆单、对价单等高级功能
 """
 import asyncio
+import atexit
 from datetime import datetime
 import logging
+import os
 import sys
 
 import ujson
@@ -47,7 +49,7 @@ def reformat_date(trading_day, time):
 class TradingAPI:
     @staticmethod
     def get_ctp_order(sessionid, frontid, orderref):
-        return api.action("ctp_order", "read", params={"session_id": sessionid, "frontid": front_id, "order_ref": orderref})
+        return api.action("ctp_order", "read", params={"session_id": sessionid, "frontid": frontid, "order_ref": orderref})
 
     @staticmethod
     def get_order(order_id):
@@ -158,10 +160,13 @@ class TraderBot(Trader):
         self.account_name = account_name
         account_info = api.action("ctp", "read", params={"Name": account_name})
         self.position_detail_cache = {}
-        super().__init__(account_info['TdHost'].encode(),
-                         account_info['UserID'].encode(),
-                         account_info['BrokerID'].encode(),
-                         account_info['Password'].encode())
+        super().__init__(account_info['TdHost'],
+                         account_info['UserID'],
+                         account_info['BrokerID'],
+                         account_info['Password'],
+                         account_info['AppID'],
+                         account_info['AuthCode'],
+                         )
 
     ############## 通知
 
@@ -183,7 +188,7 @@ class TraderBot(Trader):
         # super().OnRtnOrder(pOrder)
 
     def OnErrRtnOrderInsert(self, pInputOrder, pRspInfo):
-        TradingAPI.update_ctp_order(self.account_name, pOrder, session_id=self.session_id.decode(), front_id=self.front_id.decode())
+        TradingAPI.update_ctp_order(self.account_name, pInputOrder, session_id=self.session_id, front_id=self.front_id)
 
     def OnRtnInstrumentStatus(self, pInstrumentStatus):
         """合约交易状态通知"""
@@ -263,7 +268,7 @@ class TraderBot(Trader):
             "TotalSPosition": 0,
             "NetAmount": 0,
         }
-        if pInvestorPositionDetail is none:
+        if pInvestorPositionDetail is None:
             return
         position = self.position_detail_cache.get(pInvestorPositionDetail.InstrumentID.decode(), empty_position)
         if pInvestorPositionDetail.Direction == ApiStruct.D_Buy:
@@ -294,17 +299,17 @@ class TraderBot(Trader):
 
     def send_order(self, instrument, price, volume, direction, offset, order_id):
         orderref = str(self.inc_orderref_id())
-        order = ApiStruct.InputOrder(
+        order = ApiStruct.InputOrderField(
             BrokerID=self.broker_id,
             InvestorID=self.investor_id,
-            InstrumentID=instrument.encode(),
-            OrderRef=orderref.encode(),
+            InstrumentID=instrument,
+            OrderRef=orderref,
             UserID=self.investor_id,
             OrderPriceType=ApiStruct.OPT_LimitPrice,
             LimitPrice=price,
             VolumeTotalOriginal=volume,
-            Direction=direction.encode(),
-            CombOffsetFlag=offset.encode(),
+            Direction=direction,
+            CombOffsetFlag=offset,
             CombHedgeFlag=ApiStruct.HF_Speculation,
             ContingentCondition=ApiStruct.CC_Immediately,
             ForceCloseReason=ApiStruct.FCC_NotForceClose,
@@ -316,26 +321,26 @@ class TraderBot(Trader):
         )
 
         # 插入API必须在CTP报单之前，否则OnRtnOrder时可能查询不到报单
-        TradingAPI.insert_ctp_order(self.account_name, order_id, order, self.session_id.decode(), self.front_id.decode())
+        TradingAPI.insert_ctp_order(self.account_name, order_id, order, self.session_id, self.front_id)
 
         self.ReqOrderInsert(order, self.inc_request_id())
 
-        return self.session_id.decode(), self.front_id.decode(), orderref
+        return self.session_id, self.front_id, orderref
 
     def cancel_order(self, instrument, order_ref, front_id, session_id):
         """
         撤单
         """
-        req = ApiStruct.InputOrderAction()
-        req.InstrumentID = instrument.encode()
-        req.OrderRef = order_ref.encode()
-        req.FrontID = front_id.encode()
-        req.SessionID = session_id.encode()
-
-        req.ActionFlag = ApiStruct.AF_Delete  # 删除
-        req.BrokerID = self.broker_id
-        req.InvestorID = self.investor_id
-        req.UserID = self.investor_id
+        req = ApiStruct.InputOrderActionField(
+            InstrumentID=instrument,
+            OrderRef=order_ref,
+            FrontID=front_id,
+            SessionID=session_id,
+            ActionFlag=ApiStruct.AF_Delete,
+            BrokerID=self.broker_id,
+            InvestorID=self.investor_id,
+            UserID=self.investor_id,
+        )
         self.ReqOrderAction(req, self.inc_request_id())
 
 
@@ -475,6 +480,7 @@ class TraderInterface:
     def __init__(self, account_name):
         self.account_name = account_name
         self.url = self.register(account_name)
+        atexit.register(lambda: api.action("tradebot", "delete", params={"id": account_name}))
         self.loop = None
         self.trader = TraderBot(account_name)
         self.trader.login()
