@@ -171,8 +171,8 @@ class Trader(TraderApi):
             error_msg = pRspInfo.ErrorMsg.decode('gbk')
             logger.error(f'OnRspUserLogin:[ErrorID={pRspInfo.ErrorID},ErrMsg={error_msg}]')
         else:
-            self.front_id = pRspUserLogin.FrontID.decode()
-            self.session_id = pRspUserLogin.SessionID.decode()
+            self.front_id = pRspUserLogin.FrontID
+            self.session_id = pRspUserLogin.SessionID
             self.trading_day = self.GetTradingDay()
 
             logger.info(f'{datetime.datetime.now()} {pRspUserLogin}')
@@ -202,8 +202,8 @@ class Trader(TraderApi):
             logger.info(f"获取有效合约完成！总共 {len(self.instruments)} 个合约")
             self.connected = True
             self.need_relogin = False
-            # api.action("instruments", "update", params={"data": self.instruments})
-            # pickle.dump(self.instruments, open(f"instruments_{self.trading_day}", "wb"))
+            api.action("instruments", "update", params={"data": self.instruments})
+            pickle.dump(self.instruments, open(f"instruments_{self.trading_day}", "wb"))
 
     def OnRspQryInvestor(self, pInvestor, pRspInfo, nRequestID, bIsLast):
         """请求查询投资者响应"""

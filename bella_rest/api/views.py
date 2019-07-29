@@ -63,7 +63,6 @@ class OrderViewSet(ModelViewSet):
         if "Account" in qp:
             qs = qs.filter(Account=qp["Account"])
         if "Finished" in qp:
-            print(qp['Finished'])
             if qp['Finished']:
                 qs = qs.filter(Status=2)
             else:

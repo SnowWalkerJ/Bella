@@ -1,7 +1,7 @@
 import asyncio
 
 
-class ThreadSafeAsyncLoop:
+class ThreadSafeAsyncLoop(asyncio.AbstractEventLoop):
     """通过`call_soon_threadsafe`在多线程中使用异步循环"""
     def __init__(self, loop=None):
         self.__loop = loop or asyncio.get_event_loop()

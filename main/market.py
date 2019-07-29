@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime, date
 import os
 import ujson
@@ -22,21 +23,22 @@ class MarketServer(Market):
         self.api = API()
         self.account = self.get_ctp_account(account)
         super(MarketServer, self).__init__(
-            self.account['UserID'].encode(),
-            self.account['Password'].encode(),
-            self.account['BrokerID'].encode())
+            self.account['UserID'],
+            self.account['Password'],
+            self.account['BrokerID'])
+        self.ioloop = ThreadSafeAsyncLoop()
+        asyncio.set_event_loop(self.ioloop)
 
     @status_monitor("market")
     def run(self):
-        self.ioloop = ThreadSafeAsyncLoop()
         try:
             path = os.path.join(CLIENT_DIR, 'market')
-            self.Create(path.encode())
-            logger.debug(f"创建行情客户端 - {path}")
-            self.RegisterFront(self.account['MdHost'].encode())
-            logger.debug(f"注册前台服务器 {self.account['MdHost']}")
+            self.Create(path)
+            logger.info(f"创建行情客户端 - {path}")
+            self.RegisterFront(self.account['MdHost'])
+            logger.info(f"注册前台服务器 {self.account['MdHost']}")
             self.Init()
-            logger.debug("初始化")
+            logger.info("初始化")
             self.ioloop.run_forever()
         except KeyboardInterrupt:
             self.Release()

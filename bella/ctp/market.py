@@ -1,6 +1,6 @@
 import logging
 
-from .ctp import MdApi, ApiStruct
+from ._ctp import MdApi, ApiStruct
 from .utils import struct_to_dict
 from ..restful import api
 
@@ -57,6 +57,7 @@ class Market(MdApi):
     ############# 前台连接
 
     def OnFrontConnected(self):
+        logger.info("OnFrontConnected")
         self.login()
 
     def OnFrontDisconnected(self, nReason):

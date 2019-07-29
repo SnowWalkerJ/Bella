@@ -485,7 +485,7 @@ class TraderInterface:
         atexit.register(lambda: api.action("tradebot", "delete", params={"id": account_name}))
         self.loop = None
         self.trader = TraderBot(account_name)
-        self.trader.login()
+        self.trader.start()
         self.task_manager = TaskManager(self.trader)
 
     def register(self, account):
