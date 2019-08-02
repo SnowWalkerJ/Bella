@@ -2,6 +2,7 @@ from datetime import datetime
 from dateutil.parser import parse
 import os
 import tempfile
+import socket
 
 import ujson
 from django.shortcuts import get_object_or_404
@@ -281,18 +282,13 @@ class Position(APIView):
 
 
 class TradeBotViewSet(ViewSet):
-    schema = ManualSchema(fields=[
-        coreapi.Field("account", True, "form", description="account name"),
-    ])
-
     def create(self, request):
         account = request.data['account']
-        if redis.hexists("tradebots", account):
-            return Response({"OK": False})
-        else:
-            url = "ipc://" + tempfile.mktemp(".sock", "tradebot")
-            redis.hset("tradebots", account, url)
-            return Response({"OK": True, "url": url})
+        method = request.data.get('method', 'ipc')
+        bind = request.data.get('bind', '127.0.0.1')
+        url = self._generate_new_url(method, bind)
+        redis.hset("tradebots", account, url)
+        return Response({"OK": True, "url": url})
 
     def retrieve(self, request, pk=None):
         return Response({"url": redis.hget("tradebots", pk)})
@@ -304,3 +300,20 @@ class TradeBotViewSet(ViewSet):
             if os.path.exists(path):
                 os.remove(path)
         return Response({})
+
+    def _generate_new_url(self, method, bind):
+        if method == 'ipc':
+            url = "ipc://" + tempfile.mktemp(".sock", "tradebot")
+        elif method == 'tcp':
+            port = self._get_free_port(bind)
+            url = f"tcp://{bind}:{port}"
+        elif method == "static":
+            url = bind
+        return url
+
+    def _get_free_port(self, bind):
+        sock = socket.socket()
+        sock.bind((bind, 0))
+        _, port = sock.getnameinfo()
+        sock.close()
+        return port
