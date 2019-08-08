@@ -56,3 +56,9 @@ class BarPeriodSerializer(ModelSerializer):
     class Meta:
         model = BarPeriod
         fields = '__all__'
+
+
+class InstrumentSerializer(ModelSerializer):
+    class Meta:
+        model = Instrument
+        fields = '__all__'

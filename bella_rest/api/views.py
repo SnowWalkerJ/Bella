@@ -200,17 +200,16 @@ class TaskViewSet(ModelViewSet):
     serializer_class = TaskSerializer
 
 
-class InstrumentView(APIView):
-    schema = AutoSchema([
-        coreapi.Field("data", False, "form", description="instrument data"),
-    ])
+class InstrumentView(ModelViewSet):
+    queryset = Instrument.objects.all()
+    serializer_class = InstrumentSerializer
 
-    def get(self, request):
+    def list(self, request):
         today = datetime.now().strftime("%Y-%m-%d")
         data = Instrument.objects.filter(ExpireDate__gt=today)
         return Response([x.InstrumentID for x in data])
 
-    def put(self, request):
+    def create(self, request):
         data = request.data['data']
         old = list(Instrument.objects.all())
         old_ids = set(x.InstrumentID for x in old)
