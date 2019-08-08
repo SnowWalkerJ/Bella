@@ -204,7 +204,8 @@ class Trader(TraderApi):
             logger.info(f"获取有效合约完成！总共 {len(self.instruments)} 个合约")
             self.connected = True
             self.need_relogin = False
-            api.action("instruments", "update", params={"data": self.instruments})
+            for instrument in self.instruments:
+                api.action("instruments", "update", params=instrument)
             with open(f"instruments_{self.trading_day}", "wb") as f:
                 pickle.dump(self.instruments, f)
 
