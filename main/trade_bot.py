@@ -49,7 +49,7 @@ def reformat_date(trading_day, time):
 class TradingAPI:
     @staticmethod
     def get_ctp_order(sessionid, frontid, orderref):
-        return api.action("ctp_order", "read", params={"session_id": sessionid, "frontid": frontid, "order_ref": orderref})
+        return api.action("ctp_order", "read", params={"session_id": sessionid, "front_id": frontid, "order_ref": orderref})
 
     @staticmethod
     def get_order(order_id):
@@ -66,8 +66,8 @@ class TradingAPI:
         data = {
             "Account": account,
             "InstrumentID": instrument,
-            "Direction": direction.decode(),
-            "Offset": offset.decode(),
+            "Direction": direction,
+            "Offset": offset,
             "Price": str(price),
             "VolumesTotal": volume,
             "VolumesTraded": 0,
@@ -189,8 +189,8 @@ class TraderBot(Trader):
         TradingAPI.update_ctp_order(self.account_name, pOrder)
         # super().OnRtnOrder(pOrder)
 
-    def OnErrRtnOrderInsert(self, pInputOrder, pRspInfo):
-        TradingAPI.update_ctp_order(self.account_name, pInputOrder, session_id=self.session_id, front_id=self.front_id)
+    # def OnErrRtnOrderInsert(self, pInputOrder, pRspInfo):
+    #     TradingAPI.update_ctp_order(self.account_name, pInputOrder, session_id=self.session_id, front_id=self.front_id)
 
     def OnRtnInstrumentStatus(self, pInstrumentStatus):
         """合约交易状态通知"""
@@ -301,6 +301,7 @@ class TraderBot(Trader):
 
     def send_order(self, instrument, price, volume, direction, offset, order_id):
         orderref = str(self.inc_orderref_id())
+        instrument_info = api.action("instrument", "read", params={"InstrumentID": instrument})
         order = ApiStruct.InputOrderField(
             BrokerID=self.broker_id,
             InvestorID=self.investor_id,
@@ -320,6 +321,7 @@ class TraderBot(Trader):
             UserForceClose=0,
             VolumeCondition=ApiStruct.VC_AV,
             MinVolume=1,
+            ExchangdID=instrument_info['ExchangdID'],
         )
 
         # 插入API必须在CTP报单之前，否则OnRtnOrder时可能查询不到报单
