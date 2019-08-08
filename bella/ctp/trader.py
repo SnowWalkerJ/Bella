@@ -71,7 +71,7 @@ class Trader(TraderApi):
 
     def getAccount(self):
         """查询资金账户"""
-        req = ApiStruct.QryTradingAccountField(BrokerID=self.broker_id, InvestorID=self.investor_id)        
+        req = ApiStruct.QryTradingAccountField(BrokerID=self.broker_id, InvestorID=self.investor_id, BizType=0)
         self.ReqQryTradingAccount(req, self.inc_request_id())
 
     def getInstrument(self):
@@ -173,6 +173,8 @@ class Trader(TraderApi):
         else:
             self.front_id = pRspUserLogin.FrontID
             self.session_id = pRspUserLogin.SessionID
+            if self.session_id < 0:
+                print(pRspUserLogin)
             self.trading_day = self.GetTradingDay()
 
             logger.info(f'{datetime.datetime.now()} {pRspUserLogin}')
@@ -203,7 +205,8 @@ class Trader(TraderApi):
             self.connected = True
             self.need_relogin = False
             api.action("instruments", "update", params={"data": self.instruments})
-            pickle.dump(self.instruments, open(f"instruments_{self.trading_day}", "wb"))
+            with open(f"instruments_{self.trading_day}", "wb") as f:
+                pickle.dump(self.instruments, f)
 
     def OnRspQryInvestor(self, pInvestor, pRspInfo, nRequestID, bIsLast):
         """请求查询投资者响应"""
