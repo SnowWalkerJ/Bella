@@ -301,7 +301,7 @@ class TraderBot(Trader):
 
     def send_order(self, instrument, price, volume, direction, offset, order_id):
         orderref = str(self.inc_orderref_id())
-        instrument_info = api.action("instrument", "read", params={"InstrumentID": instrument})
+        instrument_info = api.action("instruments", "read", params={"InstrumentID": instrument})
         order = ApiStruct.InputOrderField(
             BrokerID=self.broker_id,
             InvestorID=self.investor_id,
@@ -321,7 +321,7 @@ class TraderBot(Trader):
             UserForceClose=0,
             VolumeCondition=ApiStruct.VC_AV,
             MinVolume=1,
-            ExchangdID=instrument_info['ExchangdID'],
+            ExchangeID=instrument_info['ExchangeID'],
         )
 
         # 插入API必须在CTP报单之前，否则OnRtnOrder时可能查询不到报单
@@ -335,6 +335,7 @@ class TraderBot(Trader):
         """
         撤单
         """
+        instrument_info = api.action("instruments", "read", params={"InstrumentID": instrument})
         req = ApiStruct.InputOrderActionField(
             InstrumentID=instrument,
             OrderRef=order_ref,
@@ -344,6 +345,7 @@ class TraderBot(Trader):
             BrokerID=self.broker_id,
             InvestorID=self.investor_id,
             UserID=self.investor_id,
+            ExchangeID=instrument_info['ExchangeID'],
         )
         self.ReqOrderAction(req, self.inc_request_id())
 
