@@ -1,6 +1,7 @@
 import zmq
+import zmq.asyncio
 
-from .restful import api
+from ..restful import api
 
 
 class Trader:
