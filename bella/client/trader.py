@@ -32,37 +32,37 @@ class Trader:
         resp = await self.sock.recv_json()
         return resp
 
-    def buy(self, instrument, volume):
-        return self.trade("buy", instrument, 'CP', volume)
+    def buy(self, instrument, volume, price='CP'):
+        return self.trade("buy", instrument, price, volume)
 
-    def buy_to_cover(self, instrument, volume):
-        return self.trade("buy_to_cover", instrument, 'CP', volume)
+    def buy_to_cover(self, instrument, volume, price='CP'):
+        return self.trade("buy_to_cover", instrument, price, volume)
 
-    def sell(self, instrument, volume):
-        return self.trade("sell", instrument, 'CP', volume)
+    def sell(self, instrument, volume, price='CP'):
+        return self.trade("sell", instrument, price, volume)
 
-    def sell_short(self, instrument, volume):
-        return self.trade("sell_short", instrument, 'CP', volume)
+    def sell_short(self, instrument, volume, price='CP'):
+        return self.trade("sell_short", instrument, price, volume)
 
-    async def long(self, instrument, volume):
+    async def long(self, instrument, volume, price='CP'):
         position = await self.query_position(instrument)
         print(position)
         if not position['TodaySPosition'] and position['YdSPosition']:
             trade_volume = min(position['YdSPosition'], volume)
             volume -= trade_volume
-            await self.buy_to_cover(instrument, trade_volume)
+            await self.buy_to_cover(instrument, trade_volume, price)
         if volume:
-            await self.buy(instrument, volume)
+            await self.buy(instrument, volume, price)
 
-    async def short(self, instrument, volume):
+    async def short(self, instrument, volume, price='CP'):
         position = await self.query_position(instrument)
         print(position)
         if not position['TodayLPosition'] and position['YdLPosition']:
             trade_volume = min(position['YdLPosition'], volume)
             volume -= trade_volume
-            await self.sell(instrument, trade_volume)
+            await self.sell(instrument, trade_volume, price)
         if volume:
-            await self.sell_short(instrument, volume)
+            await self.sell_short(instrument, volume, price)
 
     async def query_position(self, instrument, account=None):
         data = {
