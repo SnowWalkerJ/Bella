@@ -199,7 +199,7 @@ class TraderBot(Trader):
 
     def OnRtnTradingNotice(self, pTradingNoticeInfo):
         """交易通知"""
-        redis.publish("Trader:OnRtnTradingNotice", ujson.dumps(struct_to_dict(pTradingNoticeInfo)))
+        redis.publish(f"Trader:{self.account_name}:OnRtnTradingNotice", ujson.dumps(struct_to_dict(pTradingNoticeInfo)))
         super().OnRtnTradingNotice(pTradingNoticeInfo)
 
     ############## 回报
@@ -212,7 +212,7 @@ class TraderBot(Trader):
             "nRequestID": nRequestID,
             "bIsLast": bIsLast,
         }
-        redis.publish("Trader:OnRspOrderAction", ujson.dumps(data))
+        redis.publish(f"Trader:{self.account_name}:OnRspOrderAction", ujson.dumps(data))
         super().OnRspOrderAction(pInputOrderAction, pRspInfo, nRequestID, bIsLast)
 
     def OnRspQryTradingAccount(self, pTradingAccount, pRspInfo, nRequestID, bIsLast):
@@ -223,7 +223,7 @@ class TraderBot(Trader):
             "nRequestID": nRequestID,
             "bIsLast": bIsLast,
         }
-        redis.publish("Trader:OnRspQryTradingAccount", ujson.dumps(data))
+        redis.publish(f"Trader:{self.account_name}:OnRspQryTradingAccount", ujson.dumps(data))
         super().OnRspQryTradingAccount(pTradingAccount, pRspInfo, nRequestID, bIsLast)
 
     def OnRspQryInvestor(self, pInvestor, pRspInfo, nRequestID, bIsLast):
@@ -234,7 +234,7 @@ class TraderBot(Trader):
             "nRequestID": nRequestID,
             "bIsLast": bIsLast,
         }
-        redis.publish("Trader:OnRspQryInvestor", ujson.dumps(data))
+        redis.publish(f"Trader:{self.account_name}:OnRspQryInvestor", ujson.dumps(data))
         super().OnRspQryInvestor(pInvestor, pRspInfo, nRequestID, bIsLast)
 
     def OnRspQryInvestorPosition(self, pInvestorPosition, pRspInfo, nRequestID, bIsLast):
@@ -401,6 +401,8 @@ class TaskManager:
                                                               order_id)
         await asyncio.sleep(task['split_options']['sleep_after_submit'], loop=self.loop)
         ctp_order = TradingAPI.get_ctp_order(sessionid, frontid, orderref)
+        if not hasattr(ctp_order, "Finished"):
+            print(ctp_order)
         if not ctp_order['Finished']:
             self.trader.cancel_order(task['InstrumentID'], orderref, frontid, sessionid)
         if ctp_order.get('CancelTime'):

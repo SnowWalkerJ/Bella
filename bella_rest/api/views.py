@@ -204,6 +204,13 @@ class InstrumentView(ModelViewSet):
     queryset = Instrument.objects.all()
     serializer_class = InstrumentSerializer
 
+    def create(self, request):
+        pk = request.data['InstrumentID']
+        if self.queryset.filter(InstumentID=pk).exists():
+            return Response({})
+        else:
+            super().create(request)
+
     def list(self, request):
         today = datetime.now().strftime("%Y-%m-%d")
         data = Instrument.objects.filter(ExpireDate__gt=today)
