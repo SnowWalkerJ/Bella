@@ -2,6 +2,7 @@
 CTP交易接口
 """
 from collections import defaultdict
+from decimal import Decimal
 import json
 import datetime
 import pickle
@@ -200,13 +201,18 @@ class Trader(TraderApi):
         """请求查询合约响应"""
         data = struct_to_dict(pInstrument)
         data['OptionsType'] = '0'
+        data['LongMarginRatio'] = float(Decimal(data['LongMarginRatio']).quantize(Decimal('0.000')))
+        data['ShortMarginRatio'] = float(Decimal(data['ShortMarginRatio']).quantize(Decimal('0.000')))
         self.instruments[pInstrument.InstrumentID.decode()] = data
         if bIsLast:
             logger.info(f"获取有效合约完成！总共 {len(self.instruments)} 个合约")
             self.connected = True
             self.need_relogin = False
             for instrument in self.instruments.values():
-                api.action("instruments", "create", params=instrument)
+                try:
+                    api.action("instruments", "create", params=instrument)
+                except Exception:
+                    pass
             with open(f"instruments_{self.trading_day}", "wb") as f:
                 pickle.dump(self.instruments, f)
 
