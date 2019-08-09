@@ -209,7 +209,7 @@ class InstrumentView(ModelViewSet):
         if self.queryset.filter(InstumentID=pk).exists():
             return Response({})
         else:
-            super().create(request)
+            return super().create(request)
 
     def list(self, request):
         today = datetime.now().strftime("%Y-%m-%d")
