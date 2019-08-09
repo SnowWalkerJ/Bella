@@ -107,6 +107,9 @@ class TradingAPI:
             "CTPOrderID": 123456,      # This is dummy
             "OrderSysID": pTrade.OrderSysID.decode().strip(),
             "Account": account,
+            "Instrument": pTrade.InstrumentID.decode(),
+            "Direction": pTrade.Direction.decode(),
+            "OffsetFlag": pTrade.OffsetFlag.decode(),
             "TradeID": pTrade.TradeID.decode(),
             "Price": pTrade.Price,
             "Volume": pTrade.Volume,

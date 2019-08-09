@@ -15,7 +15,7 @@ class CTPOrder(models.Model):
     Account = models.ForeignKey("CTPAccount", on_delete=models.CASCADE)
     InvestorID = models.CharField(max_length=20)
     BrokerID = models.CharField(max_length=20)
-    InstrumentID = models.CharField(max_length=20)
+    InstrumentID = models.ForeignKey("Instrument", on_delete=models.CASCADE)
     Direction = models.CharField(max_length=1)
     Offset = models.CharField(max_length=1)
     Price = models.DecimalField(max_digits=7, decimal_places=2)
