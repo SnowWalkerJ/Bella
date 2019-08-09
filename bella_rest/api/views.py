@@ -209,18 +209,6 @@ class InstrumentView(ModelViewSet):
         data = Instrument.objects.filter(ExpireDate__gt=today)
         return Response([x.InstrumentID for x in data])
 
-    def create(self, request):
-        data = request.data['data']
-        old = list(Instrument.objects.all())
-        old_ids = set(x.InstrumentID for x in old)
-        serializer = InstrumentSerializer()
-        for name, instrument in data.items():
-            if name in old_ids:
-                continue
-            instrument = serializer.create(instrument)
-            instrument.save()
-        return Response()
-
 
 class BarDataView(APIView):
     schema = AutoSchema([

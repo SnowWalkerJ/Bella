@@ -28,7 +28,7 @@ class Instrument(models.Model):
     LongMarginRatio        = models.DecimalField(max_digits=20, decimal_places=3)      # 多头保证金率
     ShortMarginRatio       = models.DecimalField(max_digits=20, decimal_places=3)      # 空头保证金率
     MaxMarginSideAlgorithm = models.CharField(max_length=20)
-    UnderlyingInstrID      = models.CharField(max_length=20)
+    UnderlyingInstrID      = models.CharField(max_length=20, blank=True)
     StrikePrice            = models.FloatField()
     OptionsType            = models.CharField(max_length=20)
     UnderlyingMultiple     = models.DecimalField(max_digits=20, decimal_places=3)
