@@ -108,7 +108,7 @@ class CTPOrderDetailView(APIView):
         account = get_object_or_404(CTPAccount, Name=request.data['Account'])
         order = Order(
             Account=account,
-            InstrumentID=request.data['InstrumentID'],
+            InstrumentID=get_object_or_404(Instrument, InstrumentID=request.data['InstrumentID']),
             Direction=request.data['Direction'],
             Offset=request.data['Offset'],
             Price=request.data['Price'],
@@ -134,7 +134,7 @@ class CTPOrderDetailView(APIView):
             Account=account,
             InvestorID=request.data['InvestorID'],
             BrokerID=request.data['BrokerID'],
-            InstrumentID=request.data['InstrumentID'],
+            InstrumentID=get_object_or_404(Instrument, InstrumentID=request.data['InstrumentID']),
             Direction=request.data['Direction'],
             Offset=request.data['Offset'],
             Price=request.data['Price'],
@@ -159,6 +159,8 @@ class CTPOrderDetailView(APIView):
                     value = get_object_or_404(CTPAccount, Name=request.data[field_name])
                 elif field_name == "OrderID":
                     value = get_object_or_404(Order, ID=int(request.data[field_name]))
+                elif field_name == "InstrumentID":
+                    value = get_object_or_404(Instrument, InstrumentID=value)
                 setattr(obj, field_name, value)
             obj.save()
         return obj
@@ -210,7 +212,7 @@ class InstrumentView(ModelViewSet):
 
     def create(self, request):
         pk = request.data['InstrumentID']
-        if self.queryset.filter(InstumentID=pk).exists():
+        if self.queryset.filter(InstrumentID=pk).exists():
             return Response({})
         else:
             return super().create(request)
