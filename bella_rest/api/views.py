@@ -95,7 +95,7 @@ class OrderViewSet(ModelViewSet):
         return Response({"ID": order.ID})
 
 
-class CTPOrderViewSet(mixins.ListModelMixin, GenericViewSet):
+class CTPOrderViewSet(mixins.ListModelMixin, mixins.CreateModelMixin, GenericViewSet):
     queryset = CTPOrder.objects.all()
     serializer_class = CTPOrderSerializer
 
@@ -176,7 +176,7 @@ class CTPOrderDetailView(APIView):
         obj = get_object_or_404(self.queryset, SessionID=session_id, FrontID=front_id, OrderRef=order_ref)
         return Response(self.serializer_class(obj).data)
 
-    def post(self, request, session_id, front_id, order_ref):
+    def patch(self, request, session_id, front_id, order_ref):
         """partial_update"""
         ctp_order = self._partial_update(request, session_id, front_id, order_ref)
         order = ctp_order.OrderID
@@ -190,7 +190,11 @@ class CTPTradeViewSet(ModelViewSet):
     serializer_class = CTPTradeSerializer
 
     def create(self, request):
-        ctp_order = get_object_or_404(CTPOrder.objects.all(), OrderSysID=request.data['OrderSysID'])
+        ctp_order = get_object_or_404(
+            CTPOrder.objects.all(),
+            OrderSysID=request.data['OrderSysID'],
+            Account=request.data['Account']
+        )
         request.data['CTPOrderID'] = ctp_order.id
         return super().create(request)
 

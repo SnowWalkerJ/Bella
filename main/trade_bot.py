@@ -83,13 +83,13 @@ class TradingAPI:
     @staticmethod
     def insert_ctp_order(account, order_id, pInputOrder, session_id, front_id):
         data = {
+            "SessionID": session_id,
+            "OrderRef": pInputOrder.OrderRef.decode(),
+            "FrontID": front_id,
             "Account": account,
             "BrokerID": pInputOrder.BrokerID.decode(),
             "InvestorID": pInputOrder.InvestorID.decode(),
-            "session_id": session_id,
-            "order_ref": pInputOrder.OrderRef.decode(),
             "OrderID": order_id,
-            "front_id": front_id,
             "InstrumentID": pInputOrder.InstrumentID.decode(),
             "Direction": pInputOrder.Direction.decode(),
             "Offset": pInputOrder.CombOffsetFlag.decode(),
@@ -105,7 +105,7 @@ class TradingAPI:
     def insert_ctp_trade(account, pTrade):
         data = {
             "CTPOrderID": 123456,      # This is dummy
-            "OrderSysID": pTrade.OrderSysID.decode(),
+            "OrderSysID": pTrade.OrderSysID.decode().strip(),
             "Account": account,
             "TradeID": pTrade.TradeID.decode(),
             "Price": pTrade.Price,
@@ -132,7 +132,7 @@ class TradingAPI:
             "session_id": session_id,
             "front_id": front_id,
             'order_ref': pOrder.OrderRef.decode(),
-            "OrderSysID": pOrder.OrderSysID.decode(),
+            "OrderSysID": pOrder.OrderSysID.decode().strip(),
             "InstrumentID": pOrder.InstrumentID.decode(),
             "Direction": pOrder.Direction.decode(),
             "Offset": pOrder.CombOffsetFlag.decode(),
@@ -145,7 +145,7 @@ class TradingAPI:
             'StatusMsg': pOrder.StatusMsg.decode("gbk"),
             'Finished': finished,
         }
-        api.action("ctp_order", "create", params=data)
+        api.action("ctp_order", "partial_update", params=data)
 
     @staticmethod
     def query_order(orderref):
