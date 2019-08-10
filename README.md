@@ -59,7 +59,7 @@ gunicorn bella_rest.wsgi:application -b 0.0.0.0:6008  # 启动bella_rest服务
 ### 交易程序
 
 ```bash
-env PYTHONPATH=. python main/tradebot.py [ctp account]
+python main/tradebot.py [ctp account]
 ```
 
 ### 行情程序
@@ -67,9 +67,15 @@ env PYTHONPATH=. python main/tradebot.py [ctp account]
 交易程序需要配合行情程序才能正确处理合约的最新价格。运行行情程序：
 
 ```bash
-env PYTHONPATH=. python main/market.py [ctp account]
+python main/market.py [ctp account]
 ```
 
 ## 程序示例
 
 ### 获取行情
+
+参见`examples/market.py`
+
+### 交易及获取仓位
+
+参见`examples/trader.py`
