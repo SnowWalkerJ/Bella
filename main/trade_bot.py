@@ -6,6 +6,7 @@ import atexit
 from datetime import datetime
 import logging
 import os
+import platform
 import sys
 
 import ujson
@@ -498,7 +499,15 @@ class TraderInterface:
         self.task_manager = TaskManager(self.trader)
 
     def register(self, account):
-        resp = api.action("tradebot", "create", params={"account": account})
+        if platform.system() == "Windows":
+            params = {
+                "account": account,
+                "method": "tcp",
+                "bind": "127.0.0.1",
+            }
+        else:
+            params = {"account": account}
+        resp = api.action("tradebot", "create", params=params)
         if not resp['OK']:
             raise RuntimeError(f"Tradebot with account {account} is already running")
         return resp['url']
