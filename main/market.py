@@ -1,8 +1,10 @@
+import sys
 import asyncio
 from datetime import datetime, date
 import os
-import ujson
 import logging
+
+import ujson
 
 from bella.asyncloop import ThreadSafeAsyncLoop
 from bella.constants import CLIENT_DIR, SECOND_UNIT
@@ -85,4 +87,5 @@ class MarketServer(Market):
 
 
 if __name__ == '__main__':
-    MarketServer("simnow").run()
+    account = sys.argv[1]
+    MarketServer(account).run()
