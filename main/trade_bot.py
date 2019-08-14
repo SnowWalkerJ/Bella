@@ -277,7 +277,7 @@ class TraderBot(Trader):
         if pInvestorPositionDetail is None:
             return
         position = self.position_detail_cache.get(pInvestorPositionDetail.InstrumentID.decode(), empty_position)
-        if pInvestorPositionDetail.Direction == ApiStruct.D_Buy:
+        if pInvestorPositionDetail.Direction.decode() == ApiStruct.D_Buy:
             D = 'L'
         else:
             D = 'S'
