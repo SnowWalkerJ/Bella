@@ -16,7 +16,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "axios": "^0.18.0",
+    "axios": "^0.18.1",
     "iview": "^3.0.0",
     "vue": "^2.2.6",
     "vue-router": "^2.3.1",
